@@ -2,35 +2,70 @@ import type { ReactNode } from "react";
 import { Card } from "./Card";
 import { cn } from "@/lib/utils";
 
+type MetricTone =
+  | "neutral"
+  | "success"
+  | "danger"
+  | "accent"
+  | "warning";
+
+interface MetricCardProps {
+  label: string;
+  value: string;
+  detail?: string;
+  icon?: ReactNode;
+  tone?: MetricTone;
+}
+
+const tones: Record<MetricTone, string> = {
+  neutral: "text-[var(--text-primary)]",
+  success: "text-[var(--success)]",
+  danger: "text-[var(--danger)]",
+  accent: "text-[var(--brand)]",
+  warning: "text-[var(--warning)]",
+};
+
 export function MetricCard({
   label,
   value,
   detail,
   icon,
   tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  icon?: ReactNode;
-  tone?: "neutral" | "success" | "danger" | "accent" | "warning";
-}) {
-  const tones = {
-    neutral: "text-primary",
-    success: "text-success",
-    danger: "text-danger",
-    accent: "text-accent",
-    warning: "text-warning",
-  };
-
+}: MetricCardProps) {
   return (
-    <Card className="min-h-[132px]">
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-sm font-medium text-secondary">{label}</p>
-        {icon}
+    <Card className="min-h-[132px] p-5">
+      <div className="flex h-full min-h-[92px] flex-col">
+        {/* Header */}
+        <div className="flex min-h-[40px] items-start justify-between gap-3">
+          <p className="max-w-[80%] text-sm font-medium leading-5 text-[var(--text-secondary)]">
+            {label}
+          </p>
+
+          {icon && (
+            <div className="shrink-0 text-[var(--text-muted)]">
+              {icon}
+            </div>
+          )}
+        </div>
+
+        {/* Value */}
+        <div className="mt-auto">
+          <p
+            className={cn(
+              "whitespace-nowrap text-[28px] font-bold leading-none tracking-[-0.035em]",
+              tones[tone],
+            )}
+          >
+            {value}
+          </p>
+
+          {detail && (
+            <p className="mt-2 text-xs leading-4 text-[var(--text-secondary)]">
+              {detail}
+            </p>
+          )}
+        </div>
       </div>
-      <p className={cn("mt-3 text-2xl font-bold tracking-tight", tones[tone])}>{value}</p>
-      {detail && <p className="mt-1 text-xs text-secondary">{detail}</p>}
     </Card>
   );
 }

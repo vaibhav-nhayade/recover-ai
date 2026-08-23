@@ -1,27 +1,63 @@
 @import "tailwindcss";
 
 @theme {
-  --color-app: #f7f8fa;
+  --color-app: #f6f8fb;
   --color-surface: #ffffff;
+  --color-surface-soft: #f9fafb;
+
   --color-primary: #111827;
   --color-secondary: #667085;
+  --color-muted: #98a2b3;
+
   --color-border: #e4e7ec;
-  --color-accent: #635bff;
+  --color-border-strong: #d0d5dd;
+
+  --color-brand: #635bff;
+  --color-brand-dark: #5046e5;
+  --color-brand-soft: #eeecff;
+
   --color-success: #12b76a;
+  --color-success-soft: #ecfdf3;
+
   --color-warning: #f79009;
+  --color-warning-soft: #fffaeb;
+
   --color-danger: #f04438;
+  --color-danger-soft: #fef3f2;
+
+  --color-info: #1570ef;
+  --color-info-soft: #eff8ff;
 }
 
 :root {
-  --bg-app: #f7f8fa;
+  --bg-app: #f6f8fb;
   --surface: #ffffff;
+  --surface-soft: #f9fafb;
+
   --text-primary: #111827;
   --text-secondary: #667085;
+  --text-muted: #98a2b3;
+
   --border: #e4e7ec;
-  --accent: #635bff;
+  --border-strong: #d0d5dd;
+
+  --brand: #635bff;
+  --brand-dark: #5046e5;
+  --brand-soft: #eeecff;
+
   --success: #12b76a;
   --warning: #f79009;
   --danger: #f04438;
+  --info: #1570ef;
+
+  --sidebar-width: 252px;
+  --sidebar-collapsed-width: 72px;
+  --header-height: 68px;
+
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.04);
+  --shadow-sm: 0 2px 8px rgb(16 24 40 / 0.06);
+  --shadow-md: 0 8px 24px rgb(16 24 40 / 0.08);
+  --shadow-lg: 0 16px 40px rgb(16 24 40 / 0.12);
 }
 
 * {
@@ -29,13 +65,23 @@
 }
 
 html {
+  min-height: 100%;
   background: var(--bg-app);
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100vh;
   margin: 0;
-  background: var(--bg-app);
+  background:
+    radial-gradient(
+      circle at 85% 0%,
+      rgb(99 91 255 / 0.055),
+      transparent 28rem
+    ),
+    var(--bg-app);
   color: var(--text-primary);
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -44,6 +90,9 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -57,11 +106,150 @@ button {
   cursor: pointer;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 ::selection {
   background: rgb(99 91 255 / 0.16);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+/* Scrollbars */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d0d5dd transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #98a2b3;
+}
+
+/* Shared application utilities */
+
+.app-shell {
+  min-height: 100vh;
+  background: var(--bg-app);
+}
+
+.app-content {
+  min-width: 0;
+  padding: 28px;
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-xs);
+}
+
+.surface-hover {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.surface-hover:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+/* Motion */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 320ms ease-out both;
+}
+
+.animate-slide-in {
+  animation: slide-in 220ms ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1.8s ease-in-out infinite;
+}
+
+/* Responsive foundation */
+
+@media (max-width: 1024px) {
+  .app-content {
+    padding: 22px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-content {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,17 +1,24 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type BadgeVariant = "success" | "warning" | "danger" | "accent" | "neutral";
+type BadgeVariant =
+  | "success"
+  | "warning"
+  | "danger"
+  | "accent"
+  | "neutral";
+
+interface BadgeProps {
+  children: ReactNode;
+  variant?: BadgeVariant;
+  className?: string;
+}
 
 export function Badge({
   children,
   variant = "neutral",
   className,
-}: {
-  children: ReactNode;
-  variant?: BadgeVariant;
-  className?: string;
-}) {
+}: BadgeProps) {
   const styles: Record<BadgeVariant, string> = {
     success: "bg-success/10 text-success",
     warning: "bg-warning/10 text-warning",
@@ -21,7 +28,15 @@ export function Badge({
   };
 
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", styles[variant], className)}>
+    <span
+      className={cn(
+        "inline-flex h-6 items-center justify-center",
+        "whitespace-nowrap rounded-full px-2.5",
+        "text-[11px] font-semibold leading-none",
+        styles[variant],
+        className,
+      )}
+    >
       {children}
     </span>
   );
