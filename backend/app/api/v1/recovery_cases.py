@@ -12,6 +12,7 @@ from app.models.transaction import Transaction
 from app.schemas.recovery_case import (
     RecoveryCaseCreateRequest,
     RecoveryCaseResponse,
+    RecoveryCaseStatusUpdateRequest,
 )
 
 
@@ -123,5 +124,57 @@ def get_recovery_case(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recovery case not found.",
         )
+
+    return RecoveryCaseResponse.model_validate(case)
+
+
+@router.patch(
+    "/{case_id}/status",
+    response_model=RecoveryCaseResponse,
+)
+def update_recovery_case_status(
+    case_id: UUID,
+    payload: RecoveryCaseStatusUpdateRequest,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryCaseResponse:
+    """Update the status of a recovery case."""
+
+    case = db.scalar(
+        select(RecoveryCase).where(
+            RecoveryCase.id == case_id,
+            RecoveryCase.merchant_id == current_merchant.id,
+        )
+    )
+
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recovery case not found.",
+        )
+
+    allowed_statuses = {
+        "OPEN",
+        "IN_PROGRESS",
+        "RECOVERED",
+        "FAILED",
+        "CLOSED",
+    }
+
+    new_status = payload.status.upper()
+
+    if new_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Invalid status. Allowed values: "
+                "OPEN, IN_PROGRESS, RECOVERED, FAILED, CLOSED."
+            ),
+        )
+
+    case.status = new_status
+
+    db.commit()
+    db.refresh(case)
 
     return RecoveryCaseResponse.model_validate(case)
