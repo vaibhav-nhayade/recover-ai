@@ -1,0 +1,39 @@
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class MerchantRegisterRequest(BaseModel):
+    business_name: str = Field(min_length=2, max_length=150)
+    legal_name: str | None = Field(default=None, max_length=200)
+    email: EmailStr
+    phone: str | None = Field(default=None, max_length=32)
+    password: str = Field(min_length=8, max_length=128)
+    industry: str | None = Field(default=None, max_length=100)
+    country: str = Field(default="IN", min_length=2, max_length=2)
+    currency: str = Field(default="INR", min_length=3, max_length=3)
+    timezone: str = Field(default="Asia/Kolkata", max_length=64)
+
+
+class MerchantLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class MerchantResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    merchant_code: str
+    business_name: str
+    legal_name: str | None
+    email: EmailStr
+    phone: str | None
+    industry: str | None
+    country: str
+    currency: str
+    timezone: str
+    status: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
