@@ -13,6 +13,7 @@ from app.models.recovery_case import RecoveryCase
 from app.schemas.recovery_attempt import (
     RecoveryAttemptCreateRequest,
     RecoveryAttemptResponse,
+    RecoveryAttemptStatusUpdateRequest,
 )
 
 
@@ -119,5 +120,62 @@ def get_recovery_attempt(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recovery attempt not found.",
         )
+
+    return RecoveryAttemptResponse.model_validate(attempt)
+
+
+@router.patch(
+    "/{attempt_id}/status",
+    response_model=RecoveryAttemptResponse,
+)
+def update_recovery_attempt_status(
+    attempt_id: UUID,
+    payload: RecoveryAttemptStatusUpdateRequest,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryAttemptResponse:
+    """Update the status of a recovery attempt."""
+
+    attempt = db.scalar(
+        select(RecoveryAttempt)
+        .join(
+            RecoveryCase,
+            RecoveryCase.id == RecoveryAttempt.recovery_case_id,
+        )
+        .where(
+            RecoveryAttempt.id == attempt_id,
+            RecoveryCase.merchant_id == current_merchant.id,
+        )
+    )
+
+    if not attempt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recovery attempt not found.",
+        )
+
+    allowed_statuses = {
+        "PENDING",
+        "SENT",
+        "DELIVERED",
+        "FAILED",
+        "COMPLETED",
+    }
+
+    new_status = payload.status.upper()
+
+    if new_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Invalid status. Allowed values: "
+                "PENDING, SENT, DELIVERED, FAILED, COMPLETED."
+            ),
+        )
+
+    attempt.status = new_status
+
+    db.commit()
+    db.refresh(attempt)
 
     return RecoveryAttemptResponse.model_validate(attempt)

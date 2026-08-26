@@ -6,9 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class RecoveryAttemptCreateRequest(BaseModel):
     recovery_case_id: UUID
-    channel: str = Field(min_length=1, max_length=32)
-    action: str = Field(min_length=1, max_length=64)
+
+    channel: str = Field(
+        min_length=1,
+        max_length=32,
+    )
+
+    action: str = Field(
+        min_length=1,
+        max_length=64,
+    )
+
     message: str | None = None
+
+
+class RecoveryAttemptStatusUpdateRequest(BaseModel):
+    status: str = Field(
+        min_length=1,
+        max_length=32,
+    )
 
 
 class RecoveryAttemptResponse(BaseModel):
