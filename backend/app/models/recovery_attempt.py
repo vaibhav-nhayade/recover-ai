@@ -1,8 +1,7 @@
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,7 +24,8 @@ class RecoveryAttempt(TimestampMixin, Base):
         nullable=False,
     )
 
-    attempt_number: Mapped[int] = mapped_column(
+    channel: Mapped[str] = mapped_column(
+        String(32),
         nullable=False,
     )
 
@@ -41,18 +41,17 @@ class RecoveryAttempt(TimestampMixin, Base):
         index=True,
     )
 
-    amount_recovered: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2),
-        default=0,
-        nullable=False,
-    )
-
-    failure_reason: Mapped[str | None] = mapped_column(
+    message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
-    executed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+    provider_reference: Mapped[str | None] = mapped_column(
+        String(128),
         nullable=True,
+    )
+
+    attempted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
     )
