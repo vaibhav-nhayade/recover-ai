@@ -5,10 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "RecoverAI API"
     app_version: str = "0.1.0"
     environment: str = "development"
-
-    database_url: str = (
-        "postgresql+psycopg://recoverai:recoverai@localhost:5432/recoverai"
-    )
+    database_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

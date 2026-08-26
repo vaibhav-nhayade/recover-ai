@@ -45,6 +45,11 @@ class Merchant(TimestampMixin, Base):
         nullable=True,
     )
 
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
     industry: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
