@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+import re
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class MerchantRegisterRequest(BaseModel):
@@ -11,6 +13,31 @@ class MerchantRegisterRequest(BaseModel):
     country: str = Field(default="IN", min_length=2, max_length=2)
     currency: str = Field(default="INR", min_length=3, max_length=3)
     timezone: str = Field(default="Asia/Kolkata", max_length=64)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not any(character.isupper() for character in value):
+            raise ValueError(
+                "Password must contain at least one uppercase letter."
+            )
+
+        if not any(character.islower() for character in value):
+            raise ValueError(
+                "Password must contain at least one lowercase letter."
+            )
+
+        if not any(character.isdigit() for character in value):
+            raise ValueError(
+                "Password must contain at least one number."
+            )
+
+        if not re.search(r"[^A-Za-z0-9]", value):
+            raise ValueError(
+                "Password must contain at least one special character."
+            )
+
+        return value
 
 
 class MerchantLoginRequest(BaseModel):
