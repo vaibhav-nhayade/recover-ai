@@ -12,14 +12,16 @@ def apply_recovery_result(
     db: Session,
 ) -> RecoveryAttempt:
     """
-    Apply the result returned by a recovery provider.
+    Apply a provider result to the recovery attempt and case.
 
-    The recovery attempt and its associated recovery case
-    are updated together.
+    The attempt and recovery case are committed together so their
+    final states remain synchronized.
     """
 
     attempt.provider_reference = provider_result.provider_reference
-    attempt.message = provider_result.message
+
+    if provider_result.message:
+        attempt.message = provider_result.message
 
     if provider_result.success:
         attempt.status = "COMPLETED"
