@@ -15,6 +15,9 @@ from app.schemas.recovery_case import (
     RecoveryCaseResponse,
     RecoveryCaseStatusUpdateRequest,
 )
+from app.services.recovery_case_service import (
+    create_recovery_case_for_transaction,
+)
 from app.services.recovery_retry import can_retry_recovery
 from app.services.recovery_service import process_recovery_case
 
@@ -76,6 +79,44 @@ def create_recovery_case(
     db.add(case)
     db.commit()
     db.refresh(case)
+
+    return RecoveryCaseResponse.model_validate(case)
+
+
+@router.post(
+    "/{transaction_id}/auto-create",
+    response_model=RecoveryCaseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def auto_create_recovery_case(
+    transaction_id: UUID,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryCaseResponse:
+    """
+    Automatically create a recovery case when the transaction
+    is eligible for recovery.
+    """
+
+    try:
+        case = create_recovery_case_for_transaction(
+            transaction_id=transaction_id,
+            merchant_id=current_merchant.id,
+            db=db,
+        )
+    except ValueError as exc:
+        message = str(exc)
+
+        if message == "Transaction not found.":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=message,
+            ) from exc
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+        ) from exc
 
     return RecoveryCaseResponse.model_validate(case)
 
@@ -203,7 +244,7 @@ def process_case(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
 
