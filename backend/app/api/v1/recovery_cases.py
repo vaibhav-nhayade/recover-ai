@@ -120,7 +120,56 @@ def auto_create_recovery_case(
 
     return RecoveryCaseResponse.model_validate(case)
 
+@router.post(
+    "/transaction/{transaction_id}/auto-recover",
+    response_model=RecoveryAttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def auto_recover_transaction(
+    transaction_id: UUID,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryAttemptResponse:
+    """
+    Automatically create and process a recovery case
+    for an eligible transaction.
+    """
 
+    try:
+        case = create_recovery_case_for_transaction(
+            transaction_id=transaction_id,
+            merchant_id=current_merchant.id,
+            db=db,
+        )
+    except ValueError as exc:
+        message = str(exc)
+
+        if message == "Transaction not found.":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=message,
+            ) from exc
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+        ) from exc
+
+    try:
+        attempt = process_recovery_case(
+            case_id=case.id,
+            merchant_id=current_merchant.id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    return RecoveryAttemptResponse.model_validate(attempt)
+
+    
 @router.get(
     "",
     response_model=list[RecoveryCaseResponse],
@@ -281,9 +330,6 @@ def retry_case(
             status_code=status.HTTP_409_CONFLICT,
             detail="Recovery case cannot be retried.",
         )
-
-    case.status = "IN_PROGRESS"
-    db.commit()
 
     try:
         attempt = process_recovery_case(
