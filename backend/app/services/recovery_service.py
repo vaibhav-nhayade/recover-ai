@@ -21,9 +21,11 @@ def process_recovery_case(
     db: Session,
 ) -> RecoveryAttempt:
     """
-    Process a recovery case, determine its strategy and channel,
-    generate a message, execute the action through the appropriate
-    provider, and record the result.
+    Process a recovery case through the complete recovery workflow.
+
+    The workflow determines the strategy, selects the channel,
+    generates the customer message, executes the provider action,
+    and records the resulting recovery attempt.
     """
 
     case = db.scalar(
@@ -41,11 +43,10 @@ def process_recovery_case(
             f"Cannot process a recovery case with status '{case.status}'."
         )
 
-    if case.status == "FAILED":
-        if not can_retry_recovery(case, db):
-            raise ValueError(
-                "Recovery case cannot be retried."
-            )
+    if case.status == "FAILED" and not can_retry_recovery(case, db):
+        raise ValueError(
+            "Recovery case cannot be retried."
+        )
 
     transaction = db.scalar(
         select(Transaction).where(
@@ -84,18 +85,8 @@ def process_recovery_case(
 
     provider = get_recovery_provider(channel)
 
-    provider_result = provider.execute(
-        action=strategy,
-        message=message,
-        recipient=transaction.customer_email,
-    )
-
     case.recovery_strategy = strategy
-
-    if provider_result.success:
-        case.status = "RECOVERED"
-    else:
-        case.status = "FAILED"
+    case.status = "IN_PROGRESS"
 
     attempt = RecoveryAttempt(
         recovery_case_id=case.id,
@@ -108,6 +99,25 @@ def process_recovery_case(
 
     db.add(attempt)
     db.flush()
+
+    try:
+        provider_result = provider.execute(
+            action=strategy,
+            message=message,
+            recipient=transaction.customer_email,
+        )
+
+    except Exception as exc:
+        attempt.status = "FAILED"
+        attempt.message = (
+            f"{message}\n\nProvider execution failed: {exc}"
+        )
+        case.status = "FAILED"
+
+        db.commit()
+        db.refresh(attempt)
+
+        return attempt
 
     return apply_recovery_result(
         attempt=attempt,
