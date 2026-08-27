@@ -7,6 +7,10 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.auth_errors import (
+    authentication_exception,
+    inactive_account_exception,
+)
 from app.core.database import get_db
 from app.core.security import (
     create_access_token,
@@ -126,10 +130,7 @@ def login(
         )
 
     if merchant.status != "ACTIVE":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant account is not active.",
-        )
+        raise inactive_account_exception()
 
     access_token = create_access_token(
         subject=str(merchant.id)
@@ -145,13 +146,13 @@ def get_current_merchant(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Merchant:
-    """Resolve the authenticated merchant from the JWT."""
+    """
+    Resolve the authenticated merchant from the JWT.
 
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate authentication credentials.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    Invalid, expired, malformed, or unknown tokens are rejected.
+    """
+
+    credentials_exception = authentication_exception()
 
     try:
         payload = decode_access_token(token)
@@ -175,10 +176,7 @@ def get_current_merchant(
         raise credentials_exception
 
     if merchant.status != "ACTIVE":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant account is not active.",
-        )
+        raise inactive_account_exception()
 
     return merchant
 
