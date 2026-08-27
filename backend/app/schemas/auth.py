@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -63,4 +64,4 @@ class MerchantResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    token_type: Literal["bearer"]
