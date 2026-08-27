@@ -19,6 +19,9 @@ def create_recovery_case_for_transaction(
 ) -> RecoveryCase:
     """
     Create a recovery case automatically for an eligible transaction.
+
+    If a recovery case already exists for the transaction, the existing
+    case is returned.
     """
 
     transaction = db.scalar(
@@ -39,6 +42,7 @@ def create_recovery_case_for_transaction(
     existing_case = db.scalar(
         select(RecoveryCase).where(
             RecoveryCase.transaction_id == transaction.id,
+            RecoveryCase.merchant_id == merchant_id,
         )
     )
 
