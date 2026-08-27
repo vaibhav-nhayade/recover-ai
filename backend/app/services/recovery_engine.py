@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
+from app.services.recovery_config import RECOVERY_STRATEGIES
 
 
 def determine_recovery_strategy(
@@ -16,22 +17,27 @@ def determine_recovery_strategy(
     payment_method = (transaction.payment_method or "").upper()
     reason = (recovery_case.reason or "").lower()
 
-    # High-value transactions get a more deliberate recovery strategy.
     if amount >= Decimal("10000"):
-        return "MANUAL_REVIEW"
+        strategy = "MANUAL_REVIEW"
 
-    # Card failures can generally be retried.
-    if payment_method == "CARD":
+    elif payment_method == "CARD":
         if "declin" in reason or "failed" in reason:
-            return "PAYMENT_RETRY"
+            strategy = "PAYMENT_RETRY"
+        else:
+            strategy = "CUSTOMER_CONTACT"
 
-    # UPI failures should generally trigger a payment retry.
-    if payment_method == "UPI":
-        return "PAYMENT_RETRY"
+    elif payment_method == "UPI":
+        strategy = "PAYMENT_RETRY"
 
-    # Bank-transfer failures may require customer follow-up.
-    if payment_method in {"BANK_TRANSFER", "NET_BANKING"}:
-        return "CUSTOMER_CONTACT"
+    elif payment_method in {"BANK_TRANSFER", "NET_BANKING"}:
+        strategy = "CUSTOMER_CONTACT"
 
-    # Default strategy for unknown failure/payment combinations.
-    return "CUSTOMER_CONTACT"
+    else:
+        strategy = "CUSTOMER_CONTACT"
+
+    if strategy not in RECOVERY_STRATEGIES:
+        raise ValueError(
+            f"Unsupported recovery strategy: {strategy}"
+        )
+
+    return strategy
