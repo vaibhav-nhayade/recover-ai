@@ -30,9 +30,10 @@ def register_and_login(client):
     return login_response.json()["access_token"]
 
 
-def transaction_payload(reference=None):
+def create_transaction_payload(reference=None):
     return {
-        "transaction_reference": reference or f"TXN-{uuid4().hex[:10]}",
+        "transaction_reference": reference
+        or f"TXN-{uuid4().hex[:10]}",
         "customer_name": "Test Customer",
         "customer_email": "customer@example.com",
         "amount": "2499.50",
@@ -49,7 +50,7 @@ def test_create_transaction(client):
 
     response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -74,7 +75,7 @@ def test_get_transaction(client):
 
     create_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -82,8 +83,7 @@ def test_get_transaction(client):
 
     assert create_response.status_code == 201
 
-    transaction = create_response.json()
-    transaction_id = transaction["id"]
+    transaction_id = create_response.json()["id"]
 
     response = client.get(
         f"/api/v1/transactions/{transaction_id}",
@@ -101,7 +101,7 @@ def test_list_transactions(client):
 
     first_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -109,7 +109,7 @@ def test_list_transactions(client):
 
     second_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -138,7 +138,7 @@ def test_duplicate_transaction_reference_is_rejected(client):
 
     first_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(reference),
+        json=create_transaction_payload(reference),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -148,7 +148,7 @@ def test_duplicate_transaction_reference_is_rejected(client):
 
     second_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(reference),
+        json=create_transaction_payload(reference),
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -163,7 +163,7 @@ def test_duplicate_transaction_reference_is_rejected(client):
 def test_transaction_endpoint_requires_authentication(client):
     response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
     )
 
     assert response.status_code == 401
@@ -175,7 +175,7 @@ def test_merchant_cannot_access_another_merchants_transaction(client):
 
     create_response = client.post(
         "/api/v1/transactions",
-        json=transaction_payload(),
+        json=create_transaction_payload(),
         headers={
             "Authorization": f"Bearer {first_token}",
         },
