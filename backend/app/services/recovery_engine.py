@@ -15,7 +15,20 @@ def determine_recovery_strategy(
 
     amount = Decimal(transaction.amount)
     payment_method = (transaction.payment_method or "").upper()
-    reason = (recovery_case.reason or "").lower()
+
+    transaction_failure_reason = (
+        getattr(transaction, "failure_reason", None) or ""
+    ).lower()
+
+    case_reason = (
+        getattr(recovery_case, "reason", None) or ""
+    ).lower()
+
+    reason = (
+        transaction_failure_reason
+        if transaction_failure_reason
+        else case_reason
+    )
 
     if amount >= Decimal("10000"):
         strategy = "MANUAL_REVIEW"

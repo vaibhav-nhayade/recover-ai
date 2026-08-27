@@ -95,6 +95,46 @@ def list_recovery_attempts(
 
 
 @router.get(
+    "/case/{case_id}",
+    response_model=list[RecoveryAttemptResponse],
+)
+def list_recovery_attempts_for_case(
+    case_id: UUID,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> list[RecoveryAttemptResponse]:
+    """List recovery attempts belonging to one recovery case."""
+
+    recovery_case = db.scalar(
+        select(RecoveryCase).where(
+            RecoveryCase.id == case_id,
+            RecoveryCase.merchant_id == current_merchant.id,
+        )
+    )
+
+    if not recovery_case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recovery case not found.",
+        )
+
+    attempts = db.scalars(
+        select(RecoveryAttempt)
+        .where(
+            RecoveryAttempt.recovery_case_id == recovery_case.id,
+        )
+        .order_by(
+            RecoveryAttempt.attempted_at.desc()
+        )
+    ).all()
+
+    return [
+        RecoveryAttemptResponse.model_validate(attempt)
+        for attempt in attempts
+    ]
+
+
+@router.get(
     "/{attempt_id}",
     response_model=RecoveryAttemptResponse,
 )
