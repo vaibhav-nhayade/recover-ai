@@ -13,7 +13,9 @@ from app.schemas.recovery_attempt import RecoveryAttemptResponse
 from app.schemas.recovery_case import (
     RecoveryCaseCreateRequest,
     RecoveryCaseResponse,
+    RecoveryCaseStatusUpdateRequest,
 )
+from app.services.recovery_retry import can_retry_recovery
 from app.services.recovery_service import process_recovery_case
 
 
@@ -202,6 +204,55 @@ def process_case(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    return RecoveryAttemptResponse.model_validate(attempt)
+
+
+@router.post(
+    "/{case_id}/retry",
+    response_model=RecoveryAttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def retry_case(
+    case_id: UUID,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryAttemptResponse:
+    """Retry a failed recovery case."""
+
+    case = db.scalar(
+        select(RecoveryCase).where(
+            RecoveryCase.id == case_id,
+            RecoveryCase.merchant_id == current_merchant.id,
+        )
+    )
+
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recovery case not found.",
+        )
+
+    if not can_retry_recovery(case, db):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Recovery case cannot be retried.",
+        )
+
+    case.status = "IN_PROGRESS"
+    db.commit()
+
+    try:
+        attempt = process_recovery_case(
+            case_id=case.id,
+            merchant_id=current_merchant.id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
 

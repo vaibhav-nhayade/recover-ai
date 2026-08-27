@@ -1,5 +1,7 @@
 from secrets import token_hex
+from uuid import UUID
 
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
@@ -28,7 +30,7 @@ router = APIRouter(
 
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login"
+    tokenUrl="/api/v1/auth/login",
 )
 
 
@@ -48,9 +50,11 @@ def register_merchant(
 ) -> MerchantResponse:
     """Register a new merchant account."""
 
+    email = str(payload.email).strip().lower()
+
     existing_merchant = db.scalar(
         select(Merchant).where(
-            Merchant.email == payload.email
+            Merchant.email == email
         )
     )
 
@@ -62,15 +66,27 @@ def register_merchant(
 
     merchant = Merchant(
         merchant_code=generate_merchant_code(),
-        business_name=payload.business_name,
-        legal_name=payload.legal_name,
-        email=payload.email,
-        phone=payload.phone,
+        business_name=payload.business_name.strip(),
+        legal_name=(
+            payload.legal_name.strip()
+            if payload.legal_name
+            else None
+        ),
+        email=email,
+        phone=(
+            payload.phone.strip()
+            if payload.phone
+            else None
+        ),
         password_hash=hash_password(payload.password),
-        industry=payload.industry,
-        country=payload.country.upper(),
-        currency=payload.currency.upper(),
-        timezone=payload.timezone,
+        industry=(
+            payload.industry.strip()
+            if payload.industry
+            else None
+        ),
+        country=payload.country.strip().upper(),
+        currency=payload.currency.strip().upper(),
+        timezone=payload.timezone.strip(),
         status="ACTIVE",
     )
 
@@ -91,9 +107,11 @@ def login(
 ) -> TokenResponse:
     """Authenticate a merchant and return a JWT access token."""
 
+    email = str(payload.email).strip().lower()
+
     merchant = db.scalar(
         select(Merchant).where(
-            Merchant.email == payload.email
+            Merchant.email == email
         )
     )
 
@@ -137,13 +155,15 @@ def get_current_merchant(
 
     try:
         payload = decode_access_token(token)
-        merchant_id = payload.get("sub")
+        subject = payload.get("sub")
 
-        if not merchant_id:
+        if not subject:
             raise credentials_exception
 
-    except Exception:
-        raise credentials_exception
+        merchant_id = UUID(subject)
+
+    except (jwt.InvalidTokenError, ValueError, TypeError):
+        raise credentials_exception from None
 
     merchant = db.scalar(
         select(Merchant).where(
@@ -153,6 +173,12 @@ def get_current_merchant(
 
     if not merchant:
         raise credentials_exception
+
+    if merchant.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Merchant account is not active.",
+        )
 
     return merchant
 

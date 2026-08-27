@@ -7,8 +7,12 @@ from sqlalchemy.orm import Session
 from app.models.recovery_attempt import RecoveryAttempt
 from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
+from app.services.provider_factory import get_recovery_provider
+from app.services.recovery_channel import determine_recovery_channel
 from app.services.recovery_engine import determine_recovery_strategy
 from app.services.recovery_message import generate_recovery_message
+from app.services.recovery_result import apply_recovery_result
+from app.services.recovery_retry import can_retry_recovery
 
 
 def process_recovery_case(
@@ -17,8 +21,9 @@ def process_recovery_case(
     db: Session,
 ) -> RecoveryAttempt:
     """
-    Process a recovery case, determine its strategy,
-    generate a recovery message, and create a recovery attempt.
+    Process a recovery case, determine its strategy and channel,
+    generate a message, execute the action through the appropriate
+    provider, and record the result.
     """
 
     case = db.scalar(
@@ -31,10 +36,16 @@ def process_recovery_case(
     if not case:
         raise ValueError("Recovery case not found.")
 
-    if case.status in {"RECOVERED", "FAILED", "CLOSED"}:
+    if case.status in {"RECOVERED", "CLOSED"}:
         raise ValueError(
             f"Cannot process a recovery case with status '{case.status}'."
         )
+
+    if case.status == "FAILED":
+        if not can_retry_recovery(case, db):
+            raise ValueError(
+                "Recovery case cannot be retried."
+            )
 
     transaction = db.scalar(
         select(Transaction).where(
@@ -63,18 +74,32 @@ def process_recovery_case(
         recovery_case=case,
     )
 
+    channel = determine_recovery_channel(strategy)
+
     message = generate_recovery_message(
         transaction=transaction,
         recovery_case=case,
         strategy=strategy,
     )
 
+    provider = get_recovery_provider(channel)
+
+    provider_result = provider.execute(
+        action=strategy,
+        message=message,
+        recipient=transaction.customer_email,
+    )
+
     case.recovery_strategy = strategy
-    case.status = "IN_PROGRESS"
+
+    if provider_result.success:
+        case.status = "RECOVERED"
+    else:
+        case.status = "FAILED"
 
     attempt = RecoveryAttempt(
         recovery_case_id=case.id,
-        channel="SYSTEM",
+        channel=channel,
         action=strategy,
         status="PENDING",
         message=message,
@@ -82,7 +107,11 @@ def process_recovery_case(
     )
 
     db.add(attempt)
-    db.commit()
-    db.refresh(attempt)
+    db.flush()
 
-    return attempt
+    return apply_recovery_result(
+        attempt=attempt,
+        recovery_case=case,
+        provider_result=provider_result,
+        db=db,
+    )
