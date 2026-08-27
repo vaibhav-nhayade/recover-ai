@@ -83,7 +83,9 @@ def list_recovery_attempts(
         .where(
             RecoveryCase.merchant_id == current_merchant.id,
         )
-        .order_by(RecoveryAttempt.attempted_at.desc())
+        .order_by(
+            RecoveryAttempt.attempted_at.desc()
+        )
     ).all()
 
     return [
@@ -134,7 +136,7 @@ def update_recovery_attempt_status(
     current_merchant: Merchant = Depends(get_current_merchant),
     db: Session = Depends(get_db),
 ) -> RecoveryAttemptResponse:
-    """Update the status of a recovery attempt."""
+    """Update a recovery attempt and synchronize its recovery case."""
 
     attempt = db.scalar(
         select(RecoveryAttempt)
@@ -156,10 +158,8 @@ def update_recovery_attempt_status(
 
     allowed_statuses = {
         "PENDING",
-        "SENT",
-        "DELIVERED",
-        "FAILED",
         "COMPLETED",
+        "FAILED",
     }
 
     new_status = payload.status.upper()
@@ -169,11 +169,28 @@ def update_recovery_attempt_status(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "Invalid status. Allowed values: "
-                "PENDING, SENT, DELIVERED, FAILED, COMPLETED."
+                "PENDING, COMPLETED, FAILED."
             ),
         )
 
     attempt.status = new_status
+
+    recovery_case = db.scalar(
+        select(RecoveryCase).where(
+            RecoveryCase.id == attempt.recovery_case_id,
+            RecoveryCase.merchant_id == current_merchant.id,
+        )
+    )
+
+    if recovery_case:
+        if new_status == "COMPLETED":
+            recovery_case.status = "RECOVERED"
+
+        elif new_status == "FAILED":
+            recovery_case.status = "FAILED"
+
+        elif new_status == "PENDING":
+            recovery_case.status = "IN_PROGRESS"
 
     db.commit()
     db.refresh(attempt)

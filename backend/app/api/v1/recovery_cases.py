@@ -9,11 +9,12 @@ from app.core.database import get_db
 from app.models.merchant import Merchant
 from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
+from app.schemas.recovery_attempt import RecoveryAttemptResponse
 from app.schemas.recovery_case import (
     RecoveryCaseCreateRequest,
     RecoveryCaseResponse,
-    RecoveryCaseStatusUpdateRequest,
 )
+from app.services.recovery_service import process_recovery_case
 
 
 router = APIRouter(
@@ -90,7 +91,7 @@ def list_recovery_cases(
     cases = db.scalars(
         select(RecoveryCase)
         .where(
-            RecoveryCase.merchant_id == current_merchant.id
+            RecoveryCase.merchant_id == current_merchant.id,
         )
         .order_by(RecoveryCase.created_at.desc())
     ).all()
@@ -178,3 +179,30 @@ def update_recovery_case_status(
     db.refresh(case)
 
     return RecoveryCaseResponse.model_validate(case)
+
+
+@router.post(
+    "/{case_id}/process",
+    response_model=RecoveryAttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def process_case(
+    case_id: UUID,
+    current_merchant: Merchant = Depends(get_current_merchant),
+    db: Session = Depends(get_db),
+) -> RecoveryAttemptResponse:
+    """Process a recovery case and create a recovery attempt."""
+
+    try:
+        attempt = process_recovery_case(
+            case_id=case_id,
+            merchant_id=current_merchant.id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    return RecoveryAttemptResponse.model_validate(attempt)
