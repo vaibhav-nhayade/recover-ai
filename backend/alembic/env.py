@@ -15,10 +15,21 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def get_database_url() -> str:
+    """Return the database URL supplied to Alembic."""
+
+    configured_url = context.get_x_argument(
+        as_dictionary=True
+    ).get("database_url")
+
+    return configured_url or settings.database_url
+
+
 def run_migrations_offline() -> None:
     """Run migrations without creating a database connection."""
+
     context.configure(
-        url=settings.database_url,
+        url=get_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -30,8 +41,9 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations using the application database connection."""
+
     connectable = create_engine(
-        settings.database_url,
+        get_database_url(),
         poolclass=pool.NullPool,
         connect_args={"connect_timeout": 5},
     )
