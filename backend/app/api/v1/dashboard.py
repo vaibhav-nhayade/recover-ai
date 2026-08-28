@@ -15,7 +15,6 @@ from app.schemas.dashboard import (
     RecentRecoveryAttemptResponse,
 )
 
-
 router = APIRouter(
     prefix="/dashboard",
     tags=["Dashboard"],
@@ -49,23 +48,23 @@ def get_dashboard_summary(
         select(
             func.coalesce(
                 func.sum(Transaction.amount),
-                0,
+                Decimal("0.00"),
             )
         ).where(
             Transaction.merchant_id == current_merchant.id
         )
-    ) or Decimal("0")
+    ) or Decimal("0.00")
 
     total_amount_at_risk = db.scalar(
         select(
             func.coalesce(
                 func.sum(RecoveryCase.amount_at_risk),
-                0,
+                Decimal("0.00"),
             )
         ).where(
             RecoveryCase.merchant_id == current_merchant.id
         )
-    ) or Decimal("0")
+    ) or Decimal("0.00")
 
     total_recovery_cases = db.scalar(
         select(func.count(RecoveryCase.id)).where(
@@ -111,12 +110,26 @@ def get_dashboard_summary(
     ) or 0
 
     recovery_rate = (
-        Decimal(recovered_recovery_cases)
-        / Decimal(total_recovery_cases)
-        * Decimal("100")
+        (
+            Decimal(recovered_recovery_cases)
+            / Decimal(total_recovery_cases)
+            * Decimal("100")
+        )
         if total_recovery_cases
-        else Decimal("0")
+        else Decimal("0.00")
     )
+
+    total_transaction_amount = Decimal(
+        total_transaction_amount
+    ).quantize(Decimal("0.01"))
+
+    total_amount_at_risk = Decimal(
+        total_amount_at_risk
+    ).quantize(Decimal("0.01"))
+
+    recovery_rate = Decimal(
+        recovery_rate
+    ).quantize(Decimal("0.01"))
 
     return DashboardSummaryResponse(
         total_transactions=total_transactions,
@@ -158,6 +171,13 @@ def get_recent_recovery_attempts(
     ).all()
 
     return [
-        RecentRecoveryAttemptResponse.model_validate(attempt)
+        RecentRecoveryAttemptResponse(
+            id=attempt.id,
+            recovery_case_id=attempt.recovery_case_id,
+            channel=attempt.channel,
+            action=attempt.action,
+            status=attempt.status,
+            attempted_at=attempt.attempted_at,
+        )
         for attempt in attempts
     ]
