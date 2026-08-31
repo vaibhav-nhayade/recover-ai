@@ -13,16 +13,18 @@ export function Button({
   variant?: ButtonVariant;
 }) {
   const styles: Record<ButtonVariant, string> = {
-    primary: "bg-accent text-white hover:bg-accent/90",
-    secondary: "border border-border bg-surface text-primary hover:bg-app",
+    primary: "bg-brand text-white hover:bg-brand/90",
+    secondary:
+      "border border-border bg-surface text-primary hover:bg-app",
     danger: "bg-danger text-white hover:bg-danger/90",
-    ghost: "text-secondary hover:bg-app hover:text-primary",
+    ghost:
+      "text-secondary hover:bg-app hover:text-primary",
   };
 
   return (
     <button
       className={cn(
-        "inline-flex min-h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-60",
         styles[variant],
         className,
       )}

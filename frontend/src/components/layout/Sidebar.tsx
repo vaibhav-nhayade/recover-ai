@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   CreditCard,
   FileBarChart,
   LayoutDashboard,

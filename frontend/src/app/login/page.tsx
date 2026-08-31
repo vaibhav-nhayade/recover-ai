@@ -1,11 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
 import { Activity, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/Button";
 import { loginMerchant } from "@/lib/api";
+
+import Link from "next/link";
+import { FormEvent, useState } from "react";
 
 const TOKEN_KEY = "recoverai_access_token";
 
@@ -140,6 +142,17 @@ export default function LoginPage() {
                 "Sign in"
               )}
             </Button>
+
+            <p className="mt-6 text-center text-sm text-secondary">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/register"
+                className="font-semibold text-accent hover:underline"
+              >
+                Create one
+              </Link>
+            </p>
+
           </form>
         </div>
 
