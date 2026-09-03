@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+from json import dumps
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,12 +9,13 @@ from sqlalchemy.orm import Session
 from app.models.recovery_attempt import RecoveryAttempt
 from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
+from app.services.intervention_ranker import rank_interventions
 from app.services.provider_factory import get_recovery_provider
 from app.services.recovery_channel import determine_recovery_channel
-from app.services.recovery_engine import determine_recovery_strategy
 from app.services.recovery_message import generate_recovery_message
 from app.services.recovery_result import apply_recovery_result
 from app.services.recovery_retry import can_retry_recovery
+from app.services.recovery_scoring import score_transaction
 
 
 def process_recovery_case(
@@ -21,11 +24,24 @@ def process_recovery_case(
     db: Session,
 ) -> RecoveryAttempt:
     """
-    Process a recovery case through the complete recovery workflow.
+    Process a recovery case through the autonomous recovery workflow.
 
-    The workflow determines the strategy, selects the channel,
-    generates the customer message, executes the provider action,
-    and records the resulting recovery attempt.
+    Decision flow:
+
+        Transaction
+            ↓
+        AI recovery scoring
+            ↓
+        Intervention ranking
+            ↓
+        Policy / retry checks
+            ↓
+        Recovery provider
+            ↓
+        Recovery outcome
+
+    The AI layer recommends an intervention but does not bypass
+    existing recovery-state and retry controls.
     """
 
     case = db.scalar(
@@ -70,12 +86,44 @@ def process_recovery_case(
     if existing_attempt:
         return existing_attempt
 
-    strategy = determine_recovery_strategy(
+    # ---------------------------------------------------------
+    # 1. AI RECOVERY SCORING
+    # ---------------------------------------------------------
+
+    recovery_score = score_transaction(
         transaction=transaction,
-        recovery_case=case,
+        db=db,
     )
 
+    # ---------------------------------------------------------
+    # 2. INTERVENTION RANKING
+    # ---------------------------------------------------------
+
+    intervention_ranking = rank_interventions(
+        amount=Decimal(transaction.amount),
+        payment_method=transaction.payment_method or "",
+        failure_reason=transaction.failure_reason or case.reason or "",
+        recovery_score=recovery_score,
+    )
+
+    selected_intervention = intervention_ranking.selected
+
+    strategy = selected_intervention.strategy
+
+    # ---------------------------------------------------------
+    # 3. SAFETY CHECK
+    # ---------------------------------------------------------
+
+    if not selected_intervention.allowed:
+        raise ValueError(
+            "AI-selected intervention is not allowed by recovery policy."
+        )
+
     channel = determine_recovery_channel(strategy)
+
+    # ---------------------------------------------------------
+    # 4. GENERATE RECOVERY MESSAGE
+    # ---------------------------------------------------------
 
     message = generate_recovery_message(
         transaction=transaction,
@@ -83,10 +131,70 @@ def process_recovery_case(
         strategy=strategy,
     )
 
-    provider = get_recovery_provider(channel)
+    # ---------------------------------------------------------
+    # 5. STORE AI DECISION EXPLANATION
+    # ---------------------------------------------------------
+
+    decision_record = {
+        "engine": "RecoverAI Recovery Decision Engine",
+        "model_type": "explainable_baseline",
+        "recovery_probability": recovery_score.probability,
+        "recovery_probability_percent": round(
+            recovery_score.probability * 100,
+            2,
+        ),
+        "model_confidence": recovery_score.confidence,
+        "model_confidence_percent": round(
+            recovery_score.confidence * 100,
+            2,
+        ),
+        "risk_band": recovery_score.risk_band,
+        "selected_intervention": selected_intervention.name,
+        "selected_strategy": selected_intervention.strategy,
+        "selected_channel": selected_intervention.channel,
+        "intervention_score": selected_intervention.score,
+        "expected_recovery": str(
+            selected_intervention.expected_recovery
+        ),
+        "features": recovery_score.features,
+        "evidence": recovery_score.evidence,
+        "alternatives": [
+            {
+                "name": item.name,
+                "strategy": item.strategy,
+                "score": item.score,
+                "expected_recovery": str(
+                    item.expected_recovery
+                ),
+                "allowed": item.allowed,
+            }
+            for item in intervention_ranking.alternatives
+        ],
+    }
+
+    existing_notes = case.notes or ""
+
+    decision_notes = (
+        "\n\n"
+        "RECOVERAI AI DECISION\n"
+        "---------------------\n"
+        f"{dumps(decision_record, indent=2)}"
+    )
+
+    case.notes = (
+        existing_notes + decision_notes
+    ).strip()
+
+    # ---------------------------------------------------------
+    # 6. UPDATE CASE STATE
+    # ---------------------------------------------------------
 
     case.recovery_strategy = strategy
     case.status = "IN_PROGRESS"
+
+    # ---------------------------------------------------------
+    # 7. CREATE RECOVERY ATTEMPT
+    # ---------------------------------------------------------
 
     attempt = RecoveryAttempt(
         recovery_case_id=case.id,
@@ -100,6 +208,12 @@ def process_recovery_case(
     db.add(attempt)
     db.flush()
 
+    # ---------------------------------------------------------
+    # 8. EXECUTE THROUGH PROVIDER
+    # ---------------------------------------------------------
+
+    provider = get_recovery_provider(channel)
+
     try:
         provider_result = provider.execute(
             action=strategy,
@@ -109,15 +223,22 @@ def process_recovery_case(
 
     except Exception as exc:
         attempt.status = "FAILED"
+
         attempt.message = (
-            f"{message}\n\nProvider execution failed: {exc}"
+            f"{message}\n\n"
+            f"Provider execution failed: {exc}"
         )
+
         case.status = "FAILED"
 
         db.commit()
         db.refresh(attempt)
 
         return attempt
+
+    # ---------------------------------------------------------
+    # 9. APPLY ACTUAL PROVIDER OUTCOME
+    # ---------------------------------------------------------
 
     return apply_recovery_result(
         attempt=attempt,
