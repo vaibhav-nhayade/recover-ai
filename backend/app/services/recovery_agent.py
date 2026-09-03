@@ -12,6 +12,7 @@ from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
 from app.services.audit_service import record_audit_event
 from app.services.recovery_batch import evaluate_transaction
+from app.services.recovery_outcome import record_recovery_outcome
 from app.services.recovery_config import MAX_RECOVERY_ATTEMPTS
 from app.services.recovery_retry import (
     count_recovery_attempts,
@@ -537,15 +538,30 @@ def run_recovery_agent(
             db,
         )
 
+
+if latest_attempt is not None:
+    recovery_outcome = record_recovery_outcome(
+        merchant_id=merchant_id,
+        case=case,
+        transaction=transaction,
+        attempt=latest_attempt,
+        db=db,
+    )
+else:
+    recovery_outcome = None
+
         attempt_count = count_recovery_attempts(
             case.id,
             db,
         )
 
-        recovered_amount = _recovered_amount(
-            case,
-            latest_attempt,
-        )
+        recovered_amount = (
+    recovery_outcome.recovered_amount
+    if recovery_outcome is not None
+    and recovery_outcome.verification_status == "VERIFIED"
+    and recovery_outcome.outcome == "RECOVERED"
+    else Decimal("0")
+)
 
         if latest_attempt is not None:
             record_audit_event(
