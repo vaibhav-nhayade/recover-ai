@@ -14,7 +14,7 @@ from app.services.provider_factory import get_recovery_provider
 from app.services.recovery_channel import determine_recovery_channel
 from app.services.recovery_message import generate_recovery_message
 from app.services.recovery_result import apply_recovery_result
-from app.services.recovery_retry import can_retry_recovery
+from app.services.recovery_retry import get_retry_decision
 from app.services.recovery_scoring import score_transaction
 
 
@@ -59,10 +59,15 @@ def process_recovery_case(
             f"Cannot process a recovery case with status '{case.status}'."
         )
 
-    if case.status == "FAILED" and not can_retry_recovery(case, db):
-        raise ValueError(
-            "Recovery case cannot be retried."
-        )
+    retry_decision = get_retry_decision(
+    case=case,
+    db=db,
+)
+
+if not retry_decision.allowed:
+    raise ValueError(
+        retry_decision.reason
+    )
 
     transaction = db.scalar(
         select(Transaction).where(
