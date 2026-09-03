@@ -9,63 +9,53 @@ type MetricTone =
   | "accent"
   | "warning";
 
-interface MetricCardProps {
-  label: string;
-  value: string;
-  detail?: string;
-  icon?: ReactNode;
-  tone?: MetricTone;
-}
-
-const tones: Record<MetricTone, string> = {
-  neutral: "text-[var(--text-primary)]",
-  success: "text-[var(--success)]",
-  danger: "text-[var(--danger)]",
-  accent: "text-[var(--brand)]",
-  warning: "text-[var(--warning)]",
-};
-
 export function MetricCard({
   label,
   value,
   detail,
   icon,
   tone = "neutral",
-}: MetricCardProps) {
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  icon?: ReactNode;
+  tone?: MetricTone;
+}) {
+  const tones: Record<MetricTone, string> = {
+    neutral: "text-primary",
+    success: "text-success",
+    danger: "text-danger",
+    accent: "text-brand",
+    warning: "text-warning",
+  };
+
   return (
-    <Card className="min-h-[132px] p-5">
-      <div className="flex h-full min-h-[92px] flex-col">
-        {/* Header */}
-        <div className="flex min-h-[40px] items-start justify-between gap-3">
-          <p className="max-w-[80%] text-sm font-medium leading-5 text-[var(--text-secondary)]">
-            {label}
-          </p>
+    <Card className="kpi-card min-h-[174px] overflow-hidden p-5">
+      <div className="relative z-10 flex items-start justify-between gap-4">
+        <p className="kpi-label">{label}</p>
 
-          {icon && (
-            <div className="shrink-0 text-[var(--text-muted)]">
-              {icon}
-            </div>
-          )}
-        </div>
-
-        {/* Value */}
-        <div className="mt-auto">
-          <p
-            className={cn(
-              "whitespace-nowrap text-[28px] font-bold leading-none tracking-[-0.035em]",
-              tones[tone],
-            )}
-          >
-            {value}
-          </p>
-
-          {detail && (
-            <p className="mt-2 text-xs leading-4 text-[var(--text-secondary)]">
-              {detail}
-            </p>
-          )}
-        </div>
+        {icon && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            {icon}
+          </div>
+        )}
       </div>
+
+      <p
+        className={cn(
+          "relative z-10 kpi-value",
+          tones[tone],
+        )}
+      >
+        {value}
+      </p>
+
+      {detail && (
+        <p className="relative z-10 kpi-detail">
+          {detail}
+        </p>
+      )}
     </Card>
   );
 }
