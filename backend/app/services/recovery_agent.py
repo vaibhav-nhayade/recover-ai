@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 from app.models.recovery_attempt import RecoveryAttempt
 from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
+from app.services.audit_service import record_audit_event
 from app.services.recovery_batch import evaluate_transaction
 from app.services.recovery_config import MAX_RECOVERY_ATTEMPTS
 from app.services.recovery_retry import (
-    get_retry_decision,
     count_recovery_attempts,
+    get_retry_decision,
 )
 from app.services.recovery_service import process_recovery_case
 
@@ -85,10 +86,11 @@ def _escalate_case(
     reason: str,
 ) -> None:
     """
-    The database intentionally uses CLOSED rather than inventing
-    an ESCALATED status.
+    Mark the case as closed and route it to manual review.
 
-    Escalation is represented through:
+    The current database does not contain an ESCALATED status.
+    Therefore escalation is represented as:
+
         status = CLOSED
         recovery_strategy = MANUAL_REVIEW
         notes = structured escalation record
@@ -121,28 +123,29 @@ def run_recovery_agent(
     """
     Execute one bounded autonomous recovery-agent run.
 
-    Autonomous loop:
+    Autonomous workflow:
 
         Detect
           ↓
-        Score
+        AI evaluation
           ↓
-        Policy check
+        Retry / policy check
           ↓
-        Execute
+        Intervention execution
           ↓
-        Verify
+        Outcome verification
           ↓
-        Retry OR Stop
+        Retry OR stop
           ↓
-        Escalate when required
+        Human escalation when required
 
     Hard safety limits:
+
         - Maximum 100 cases per agent run
         - Maximum 3 attempts per recovery case
         - No duplicate pending execution
         - No execution for recovered/closed cases
-        - Low probability cases are escalated
+        - Low-probability cases are escalated
         - Manual-review decisions stop automation
     """
 
@@ -195,9 +198,34 @@ def run_recovery_agent(
         )
 
         if not transaction:
+            reason = (
+                "Associated transaction could not be found. "
+                "Autonomous execution has been stopped."
+            )
+
             _escalate_case(
                 case,
-                "Associated transaction could not be found.",
+                reason,
+            )
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=case.transaction_id,
+                db=db,
+                event_type="ESCALATION",
+                actor="RECOVERAI_AGENT",
+                action="MANUAL_REVIEW",
+                status="CLOSED",
+                reason=reason,
+                event_data={
+                    "autonomous_execution": False,
+                    "escalation_required": True,
+                    "attempt_count": count_recovery_attempts(
+                        case.id,
+                        db,
+                    ),
+                },
             )
 
             escalated_cases += 1
@@ -212,7 +240,7 @@ def run_recovery_agent(
                     status="ESCALATED",
                     recovered_amount=Decimal("0"),
                     escalation_required=True,
-                    reason="Associated transaction could not be found.",
+                    reason=reason,
                     attempt_count=count_recovery_attempts(
                         case.id,
                         db,
@@ -221,6 +249,24 @@ def run_recovery_agent(
             )
 
             continue
+
+        record_audit_event(
+            merchant_id=merchant_id,
+            recovery_case_id=case.id,
+            transaction_id=transaction.id,
+            db=db,
+            event_type="CASE_DETECTED",
+            actor="RECOVERAI_AGENT",
+            action="EVALUATE_RECOVERY",
+            status=case.status,
+            reason="Recovery case selected for autonomous agent evaluation.",
+            event_data={
+                "transaction_reference": transaction.transaction_reference,
+                "amount_at_risk": str(case.amount_at_risk),
+                "payment_method": transaction.payment_method,
+                "failure_reason": transaction.failure_reason,
+            },
+        )
 
         retry_decision = get_retry_decision(
             case=case,
@@ -232,6 +278,42 @@ def run_recovery_agent(
                 _escalate_case(
                     case,
                     retry_decision.reason,
+                )
+
+                record_audit_event(
+                    merchant_id=merchant_id,
+                    recovery_case_id=case.id,
+                    transaction_id=transaction.id,
+                    db=db,
+                    event_type="STOPPING_RULE",
+                    actor="RECOVERAI_AGENT",
+                    action="STOP_AUTONOMOUS_EXECUTION",
+                    status="CLOSED",
+                    reason=retry_decision.reason,
+                    event_data={
+                        "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                        "attempt_count": retry_decision.attempt_count,
+                        "remaining_attempts": retry_decision.remaining_attempts,
+                        "escalation_required": True,
+                    },
+                )
+
+                record_audit_event(
+                    merchant_id=merchant_id,
+                    recovery_case_id=case.id,
+                    transaction_id=transaction.id,
+                    db=db,
+                    event_type="ESCALATION",
+                    actor="RECOVERAI_AGENT",
+                    action="MANUAL_REVIEW",
+                    status="CLOSED",
+                    reason=retry_decision.reason,
+                    event_data={
+                        "autonomous_execution": False,
+                        "escalation_required": True,
+                        "attempt_count": retry_decision.attempt_count,
+                        "remaining_attempts": retry_decision.remaining_attempts,
+                    },
                 )
 
                 escalated_cases += 1
@@ -253,6 +335,22 @@ def run_recovery_agent(
 
             else:
                 failed_cases += 1
+
+                record_audit_event(
+                    merchant_id=merchant_id,
+                    recovery_case_id=case.id,
+                    transaction_id=transaction.id,
+                    db=db,
+                    event_type="POLICY_BLOCK",
+                    actor="RECOVERAI_AGENT",
+                    action="STOP_EXECUTION",
+                    status=case.status,
+                    reason=retry_decision.reason,
+                    event_data={
+                        "attempt_count": retry_decision.attempt_count,
+                        "remaining_attempts": retry_decision.remaining_attempts,
+                    },
+                )
 
                 results.append(
                     AgentCaseResult(
@@ -276,6 +374,28 @@ def run_recovery_agent(
             db=db,
         )
 
+        record_audit_event(
+            merchant_id=merchant_id,
+            recovery_case_id=case.id,
+            transaction_id=transaction.id,
+            db=db,
+            event_type="AI_DECISION",
+            actor="RECOVERAI_AGENT",
+            action="SCORE_RECOVERY",
+            status=case.status,
+            reason="AI recovery evaluation completed.",
+            event_data={
+                "recovery_probability": evaluation.recovery_probability,
+                "recovery_probability_percent": round(
+                    evaluation.recovery_probability * 100,
+                    2,
+                ),
+                "recommended_strategy": evaluation.recommended_strategy,
+                "risk_band": evaluation.risk_band,
+                "confidence": evaluation.confidence,
+            },
+        )
+
         if evaluation.recovery_probability < AUTONOMOUS_MIN_PROBABILITY:
             reason = (
                 "Recovery probability is below the autonomous "
@@ -286,6 +406,42 @@ def run_recovery_agent(
             _escalate_case(
                 case,
                 reason,
+            )
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="STOPPING_RULE",
+                actor="RECOVERAI_AGENT",
+                action="STOP_AUTONOMOUS_EXECUTION",
+                status="CLOSED",
+                reason=reason,
+                event_data={
+                    "recovery_probability": evaluation.recovery_probability,
+                    "threshold": AUTONOMOUS_MIN_PROBABILITY,
+                    "attempt_count": retry_decision.attempt_count,
+                    "escalation_required": True,
+                },
+            )
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="ESCALATION",
+                actor="RECOVERAI_AGENT",
+                action="MANUAL_REVIEW",
+                status="CLOSED",
+                reason=reason,
+                event_data={
+                    "autonomous_execution": False,
+                    "escalation_required": True,
+                    "recovery_probability": evaluation.recovery_probability,
+                    "threshold": AUTONOMOUS_MIN_PROBABILITY,
+                },
             )
 
             escalated_cases += 1
@@ -307,6 +463,25 @@ def run_recovery_agent(
 
             continue
 
+        record_audit_event(
+            merchant_id=merchant_id,
+            recovery_case_id=case.id,
+            transaction_id=transaction.id,
+            db=db,
+            event_type="INTERVENTION_AUTHORIZED",
+            actor="RECOVERAI_AGENT",
+            action=evaluation.recommended_strategy,
+            status="IN_PROGRESS",
+            reason="Autonomous recovery intervention passed policy checks.",
+            event_data={
+                "attempt_number": retry_decision.attempt_count + 1,
+                "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                "remaining_attempts": retry_decision.remaining_attempts,
+                "recovery_probability": evaluation.recovery_probability,
+                "confidence": evaluation.confidence,
+            },
+        )
+
         try:
             attempt = process_recovery_case(
                 case_id=case.id,
@@ -316,6 +491,24 @@ def run_recovery_agent(
 
         except ValueError as exc:
             failed_cases += 1
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="INTERVENTION_BLOCKED",
+                actor="RECOVERAI_AGENT",
+                action=case.recovery_strategy or "UNKNOWN",
+                status=case.status,
+                reason=str(exc),
+                event_data={
+                    "attempt_count": count_recovery_attempts(
+                        case.id,
+                        db,
+                    ),
+                },
+            )
 
             results.append(
                 AgentCaseResult(
@@ -354,9 +547,48 @@ def run_recovery_agent(
             latest_attempt,
         )
 
+        if latest_attempt is not None:
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="INTERVENTION_OUTCOME",
+                actor="RECOVERAI_AGENT",
+                action=latest_attempt.action,
+                status=latest_attempt.status,
+                reason=(
+                    "Recovery intervention completed successfully."
+                    if latest_attempt.status == "COMPLETED"
+                    else "Recovery intervention did not recover the transaction."
+                ),
+                event_data={
+                    "attempt_count": attempt_count,
+                    "provider_reference": latest_attempt.provider_reference,
+                    "recovered_amount": str(recovered_amount),
+                },
+            )
+
         if case.status == "RECOVERED":
             recovered_cases += 1
             recovered_revenue += recovered_amount
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="RECOVERY_COMPLETED",
+                actor="RECOVERAI_AGENT",
+                action=case.recovery_strategy or "UNKNOWN",
+                status="RECOVERED",
+                reason="Recovery provider reported a successful recovery.",
+                event_data={
+                    "recovered_amount": str(recovered_amount),
+                    "attempt_count": attempt_count,
+                    "transaction_reference": transaction.transaction_reference,
+                },
+            )
 
             results.append(
                 AgentCaseResult(
@@ -384,6 +616,42 @@ def run_recovery_agent(
             _escalate_case(
                 case,
                 reason,
+            )
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="STOPPING_RULE",
+                actor="RECOVERAI_AGENT",
+                action="STOP_AUTONOMOUS_EXECUTION",
+                status="CLOSED",
+                reason=reason,
+                event_data={
+                    "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                    "attempt_count": attempt_count,
+                    "remaining_attempts": 0,
+                    "escalation_required": True,
+                },
+            )
+
+            record_audit_event(
+                merchant_id=merchant_id,
+                recovery_case_id=case.id,
+                transaction_id=transaction.id,
+                db=db,
+                event_type="ESCALATION",
+                actor="RECOVERAI_AGENT",
+                action="MANUAL_REVIEW",
+                status="CLOSED",
+                reason=reason,
+                event_data={
+                    "autonomous_execution": False,
+                    "escalation_required": True,
+                    "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                    "attempt_count": attempt_count,
+                },
             )
 
             escalated_cases += 1

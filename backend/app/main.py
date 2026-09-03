@@ -10,6 +10,7 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.recovery_scoring import router as recovery_scoring_router
 from app.api.v1.recovery_batch import router as recovery_batch_router
 from app.api.v1.recovery_agent import router as recovery_agent_router
+from app.api.v1.audit import router as audit_router
 from app.core.config import settings
 
 
@@ -70,6 +71,7 @@ app.include_router(
     recovery_agent_router,
     prefix="/api/v1",
 )
+app.include_router(audit_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
