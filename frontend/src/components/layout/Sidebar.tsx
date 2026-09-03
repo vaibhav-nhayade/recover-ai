@@ -11,6 +11,7 @@ import {
   ChevronRight,
   CreditCard,
   FileBarChart,
+  Code2,
   LayoutDashboard,
   Menu,
   RefreshCw,
@@ -65,6 +66,11 @@ const settingsItems = [
     href: "/settings",
     icon: Settings,
   },
+  {
+    label: "Developer",
+    href: "/settings#developer",
+    icon: Code2,
+  },
 ];
 
 interface SidebarProps {
@@ -89,15 +95,20 @@ export default function Sidebar({
     onCollapsedChange?.(value);
   };
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string) => {
+    const cleanHref = href.split("#")[0];
+    return (
+      pathname === cleanHref ||
+      pathname.startsWith(`${cleanHref}/`)
+    );
+  };
 
   const navigation = (
     <div className="flex h-full min-h-0 flex-col">
       {/* Brand */}
       <div
         className={cn(
-          "flex h-[68px] shrink-0 items-center border-b border-[var(--border)]",
+          "flex h-[72px] shrink-0 items-center border-b border-[var(--border)]",
           collapsed ? "justify-center px-3" : "px-5",
         )}
       >
@@ -119,28 +130,27 @@ export default function Sidebar({
               <p className="text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
                 RecoverAI
               </p>
-              <p className="mt-0.5 text-[11px] font-medium text-[var(--text-muted)]">
-                Revenue Recovery
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                Revenue Operations
               </p>
             </div>
           )}
         </Link>
       </div>
 
-      {/* Main navigation */}
       <nav
         className={cn(
           "min-h-0 flex-1 overflow-y-auto",
           collapsed ? "px-2 py-4" : "px-3 py-4",
         )}
       >
-        <div className="space-y-1">
-          {!collapsed && (
-            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              Workspace
-            </p>
-          )}
+        {!collapsed && (
+          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            Workspace
+          </p>
+        )}
 
+        <div className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -188,13 +198,8 @@ export default function Sidebar({
           })}
         </div>
 
-        {/* Settings section */}
-        <div
-          className={cn(
-            "mt-6 border-t border-[var(--border)] pt-4",
-            collapsed && "mt-5",
-          )}
-        >
+        {/* Settings */}
+        <div className="mt-6 border-t border-[var(--border)] pt-4">
           {!collapsed ? (
             <>
               <button
@@ -208,7 +213,7 @@ export default function Sidebar({
 
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 text-[var(--text-muted)] transition-transform duration-200",
+                    "h-3.5 w-3.5 text-[var(--text-muted)] transition-transform",
                     !settingsOpen && "-rotate-90",
                   )}
                 />
@@ -232,7 +237,10 @@ export default function Sidebar({
                             : "text-[var(--text-secondary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]",
                         )}
                       >
-                        <Icon className="h-[17px] w-[17px]" strokeWidth={1.9} />
+                        <Icon
+                          className="h-[17px] w-[17px]"
+                          strokeWidth={1.9}
+                        />
                         {item.label}
                       </Link>
                     );
@@ -308,7 +316,7 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Collapse button */}
+      {/* Collapse */}
       <div
         className={cn(
           "shrink-0 border-t border-[var(--border)]",
@@ -332,7 +340,9 @@ export default function Sidebar({
           ) : (
             <>
               <ChevronLeft className="h-4 w-4" />
-              <span className="text-xs font-medium">Collapse sidebar</span>
+              <span className="text-xs font-medium">
+                Collapse sidebar
+              </span>
             </>
           )}
         </button>
@@ -342,27 +352,26 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile trigger */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] transition-transform hover:scale-105 md:hidden"
+        className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)] md:hidden"
         aria-label="Open navigation"
       >
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-300 ease-out md:flex",
-          collapsed ? "w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]",
+          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[var(--border)] bg-[rgb(255_255_255_/_0.94)] transition-[width] duration-300 md:flex",
+          collapsed
+            ? "w-[var(--sidebar-collapsed-width)]"
+            : "w-[var(--sidebar-width)]",
         )}
       >
         {navigation}
       </aside>
 
-      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-[100] md:hidden">
           <button

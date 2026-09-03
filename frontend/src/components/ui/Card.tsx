@@ -1,16 +1,16 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
-  className?: string;
 }
 
-export function Card({ children, className }: CardProps) {
+export function Card({ children, className, ...props }: CardProps) {
   return (
     <section
+      {...props}
       className={cn(
-        "rounded-2xl border border-[var(--border)] bg-[var(--surface)]",
+        "relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]",
         "shadow-[var(--shadow-xs)]",
         "transition-[border-color,box-shadow,transform] duration-200",
         "hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)]",
@@ -25,9 +25,11 @@ export function Card({ children, className }: CardProps) {
 export function CardHeader({
   children,
   className,
+  ...props
 }: CardProps) {
   return (
     <div
+      {...props}
       className={cn(
         "mb-5 flex items-start justify-between gap-4",
         className,
@@ -41,9 +43,11 @@ export function CardHeader({
 export function CardTitle({
   children,
   className,
+  ...props
 }: CardProps) {
   return (
     <h2
+      {...props}
       className={cn(
         "text-sm font-bold leading-5 tracking-[-0.01em]",
         "text-[var(--text-primary)]",
