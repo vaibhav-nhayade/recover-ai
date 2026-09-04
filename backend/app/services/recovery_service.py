@@ -60,14 +60,14 @@ def process_recovery_case(
         )
 
     retry_decision = get_retry_decision(
-    case=case,
-    db=db,
-)
-
-if not retry_decision.allowed:
-    raise ValueError(
-        retry_decision.reason
+        case=case,
+        db=db,
     )
+
+    if not retry_decision.allowed:
+        raise ValueError(
+            retry_decision.reason
+        )
 
     transaction = db.scalar(
         select(Transaction).where(
@@ -107,7 +107,11 @@ if not retry_decision.allowed:
     intervention_ranking = rank_interventions(
         amount=Decimal(transaction.amount),
         payment_method=transaction.payment_method or "",
-        failure_reason=transaction.failure_reason or case.reason or "",
+        failure_reason=(
+            transaction.failure_reason
+            or case.reason
+            or ""
+        ),
         recovery_score=recovery_score,
     )
 
