@@ -1,3 +1,11 @@
+"""update recovery attempts for provider workflow
+
+Revision ID: ba8755e9d11b
+Revises: a8fdaa7058ed
+Create Date: 2026-08-26 19:41:36.853691
+
+"""
+
 """add recovery attempts table
 
 Revision ID: ba8755e9d11b
