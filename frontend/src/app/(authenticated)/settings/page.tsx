@@ -5,6 +5,7 @@ import {
   Check,
   Code2,
   CreditCard,
+  ExternalLink,
   Lock,
   Save,
   ShieldCheck,
@@ -12,11 +13,22 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import { Card } from "@/components/ui/Card";
-import { getCurrentMerchant, type Merchant } from "@/lib/api";
+import {
+  getCurrentMerchant,
+  type Merchant,
+} from "@/lib/api";
 
 export default function SettingsPage() {
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
+  const [merchant, setMerchant] =
+    useState<Merchant | null>(null);
+
+  const [merchantLoading, setMerchantLoading] =
+    useState(true);
+
+  const [merchantError, setMerchantError] =
+    useState<string | null>(null);
 
   const [automation, setAutomation] = useState(true);
   const [notifications, setNotifications] = useState(true);
@@ -24,15 +36,41 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("recoverai_access_token");
+    async function loadMerchant() {
+      try {
+        setMerchantLoading(true);
+        setMerchantError(null);
 
-    if (token) {
-      getCurrentMerchant(token)
-        .then(setMerchant)
-        .catch(() => setMerchant(null));
+        const token = localStorage.getItem(
+          "recoverai_access_token",
+        );
+
+        if (!token) {
+          setMerchantError(
+            "Authentication session not found.",
+          );
+          return;
+        }
+
+        const result = await getCurrentMerchant(token);
+
+        setMerchant(result);
+      } catch (err) {
+        setMerchantError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load merchant profile.",
+        );
+      } finally {
+        setMerchantLoading(false);
+      }
     }
 
-    const raw = localStorage.getItem("recoverai_preferences");
+    void loadMerchant();
+
+    const raw = localStorage.getItem(
+      "recoverai_preferences",
+    );
 
     if (raw) {
       try {
@@ -42,19 +80,30 @@ export default function SettingsPage() {
           weeklyReports?: boolean;
         };
 
-        window.setTimeout(() => {
-          if (typeof preferences.automation === "boolean") {
-            setAutomation(preferences.automation);
-          }
+        if (
+          typeof preferences.automation ===
+          "boolean"
+        ) {
+          setAutomation(preferences.automation);
+        }
 
-          if (typeof preferences.notifications === "boolean") {
-            setNotifications(preferences.notifications);
-          }
+        if (
+          typeof preferences.notifications ===
+          "boolean"
+        ) {
+          setNotifications(
+            preferences.notifications,
+          );
+        }
 
-          if (typeof preferences.weeklyReports === "boolean") {
-            setWeeklyReports(preferences.weeklyReports);
-          }
-        }, 0);
+        if (
+          typeof preferences.weeklyReports ===
+          "boolean"
+        ) {
+          setWeeklyReports(
+            preferences.weeklyReports,
+          );
+        }
       } catch {
         // Ignore malformed local preferences.
       }
@@ -79,10 +128,10 @@ export default function SettingsPage() {
   }
 
   const businessName =
-    merchant?.business_name ?? "Vaibhav Merchant";
+    merchant?.business_name ?? "RecoverAI Merchant";
 
   const merchantCode =
-    merchant?.merchant_code ?? "MRC_8F29A1";
+    merchant?.merchant_code ?? "—";
 
   const initials =
     businessName
@@ -91,7 +140,7 @@ export default function SettingsPage() {
       .slice(0, 2)
       .map((item) => item[0])
       .join("")
-      .toUpperCase() || "VM";
+      .toUpperCase() || "RA";
 
   return (
     <div className="mx-auto w-full max-w-[1180px] space-y-6 pb-12">
@@ -119,25 +168,45 @@ export default function SettingsPage() {
           description="Identity and business information connected to this workspace."
         />
 
+        {merchantError && (
+          <div className="mt-5 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3">
+            <p className="text-xs font-medium text-[var(--danger)]">
+              {merchantError}
+            </p>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand-soft)] text-xl font-bold text-[var(--brand)]">
-            {initials}
+            {merchantLoading ? "…" : initials}
           </div>
 
           <div className="grid flex-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <InfoItem
               label="Business name"
-              value={businessName}
+              value={
+                merchantLoading
+                  ? "Loading..."
+                  : businessName
+              }
             />
 
             <InfoItem
               label="Merchant ID"
-              value={merchantCode}
+              value={
+                merchantLoading
+                  ? "Loading..."
+                  : merchantCode
+              }
             />
 
             <InfoItem
               label="Email"
-              value={merchant?.email ?? "merchant@example.com"}
+              value={
+                merchantLoading
+                  ? "Loading..."
+                  : merchant?.email ?? "—"
+              }
             />
 
             <InfoItem
@@ -152,7 +221,9 @@ export default function SettingsPage() {
 
             <InfoItem
               label="Timezone"
-              value={merchant?.timezone ?? "Asia/Kolkata"}
+              value={
+                merchant?.timezone ?? "Asia/Kolkata"
+              }
             />
           </div>
         </div>
@@ -179,6 +250,7 @@ export default function SettingsPage() {
             detail="Escalate cases when stopping rules or recovery limits are reached."
             value={true}
             onChange={() => undefined}
+            disabled
           />
         </div>
       </Card>
@@ -270,18 +342,29 @@ export default function SettingsPage() {
         <div className="mt-5 flex flex-wrap gap-3 border-t border-[var(--border)] pt-5">
           <button
             type="button"
+            onClick={() =>
+              window.open(
+                "http://localhost:8000/docs",
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--brand-dark)]"
           >
             <Code2 className="h-4 w-4" />
             API Documentation
+            <ExternalLink className="h-3.5 w-3.5" />
           </button>
 
           <button
             type="button"
+            onClick={() =>
+              window.location.reload()
+            }
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-soft)]"
           >
             <ShieldCheck className="h-4 w-4" />
-            Integration status
+            Refresh integration status
           </button>
         </div>
       </Card>
@@ -363,11 +446,13 @@ function ToggleRow({
   detail,
   value,
   onChange,
+  disabled = false,
 }: {
   title: string;
   detail: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-5 py-4">
@@ -383,17 +468,26 @@ function ToggleRow({
 
       <button
         type="button"
-        onClick={() => onChange(!value)}
+        onClick={() =>
+          !disabled && onChange(!value)
+        }
         aria-pressed={value}
+        disabled={disabled}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
           value
             ? "bg-[var(--brand)]"
             : "bg-[var(--border-strong)]"
+        } ${
+          disabled
+            ? "cursor-not-allowed opacity-80"
+            : ""
         }`}
       >
         <span
           className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-            value ? "translate-x-6" : "translate-x-1"
+            value
+              ? "translate-x-6"
+              : "translate-x-1"
           }`}
         />
       </button>
