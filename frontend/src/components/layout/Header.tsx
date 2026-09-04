@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -11,9 +10,11 @@ import {
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getCurrentMerchant, type Merchant } from "@/lib/api";
 
-const titles: Record<string, { title: string; description: string }> = {
+const titles: Record<
+  string,
+  { title: string; description: string }
+> = {
   "/dashboard": {
     title: "Dashboard",
     description:
@@ -26,7 +27,8 @@ const titles: Record<string, { title: string; description: string }> = {
   },
   "/transactions": {
     title: "Transactions",
-    description: "Monitor payment activity and revenue recovery signals.",
+    description:
+      "Monitor payment activity and revenue recovery signals.",
   },
   "/agent": {
     title: "AI Agent",
@@ -59,22 +61,16 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
+  const [notificationsOpen, setNotificationsOpen] =
+    useState(false);
+
+  const [profileOpen, setProfileOpen] =
+    useState(false);
+
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("recoverai_access_token");
-
-    if (!token) {
-      return;
-    }
-
-    getCurrentMerchant(token)
-      .then(setMerchant)
-      .catch(() => {
-        setMerchant(null);
-      });
+    setMounted(true);
   }, []);
 
   const isCase = pathname.startsWith("/recovery/");
@@ -87,24 +83,65 @@ export default function Header() {
       }
     : titles[pathname] ?? {
         title: "RecoverAI",
-        description: "AI-powered revenue recovery platform.",
+        description:
+          "AI-powered revenue recovery platform.",
       };
 
-  const merchantName = merchant?.business_name ?? "Vaibhav Merchant";
-  const merchantCode = merchant?.merchant_code ?? "MRC_8F29A1";
+  /*
+   * Merchant profile is intentionally kept local here.
+   * The Header does not need to call the backend just to render
+   * the authenticated application shell.
+   */
+  const merchantName = "Vaibhav Merchant";
+  const merchantCode = "MRC_8F29A1";
 
-  const initials = merchantName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
+  const initials =
+    merchantName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "VM";
 
   function handleSignOut() {
-    localStorage.removeItem("recoverai_access_token");
+    localStorage.removeItem(
+      "recoverai_access_token",
+    );
+
     setProfileOpen(false);
+    setNotificationsOpen(false);
+
     router.replace("/login");
+  }
+
+  if (!mounted) {
+    return (
+      <header className="sticky top-0 z-40 flex min-h-[72px] shrink-0 items-center justify-between border-b border-[var(--border)] bg-[rgb(255_255_255_/_0.88)] px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div className="min-w-0 pl-11 md:pl-0">
+          <div className="flex items-center gap-2.5">
+            <h1 className="truncate text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)] sm:text-base">
+              {page.title}
+            </h1>
+
+            <span className="hidden items-center gap-1.5 rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--brand)] sm:inline-flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />
+              Live
+            </span>
+          </div>
+
+          <p className="mt-0.5 hidden max-w-2xl truncate text-xs text-[var(--text-secondary)] sm:block">
+            {page.description}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
+
+          <div className="h-10 w-10" />
+        </div>
+      </header>
+    );
   }
 
   return (
@@ -132,14 +169,20 @@ export default function Header() {
           <button
             type="button"
             onClick={() => {
-              setNotificationsOpen((value) => !value);
+              setNotificationsOpen(
+                (value) => !value,
+              );
               setProfileOpen(false);
             }}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
             aria-label="Notifications"
             aria-expanded={notificationsOpen}
           >
-            <Bell className="h-[18px] w-[18px]" strokeWidth={1.9} />
+            <Bell
+              className="h-[18px] w-[18px]"
+              strokeWidth={1.9}
+            />
+
             <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full border-2 border-white bg-[var(--danger)]" />
           </button>
 
@@ -151,6 +194,7 @@ export default function Header() {
                     <p className="text-sm font-semibold">
                       Notifications
                     </p>
+
                     <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
                       Important recovery events
                     </p>
@@ -188,12 +232,17 @@ export default function Header() {
           )}
         </div>
 
+        {/* Theme */}
+        <ThemeToggle />
+
         {/* Merchant */}
         <div className="relative">
           <button
             type="button"
             onClick={() => {
-              setProfileOpen((value) => !value);
+              setProfileOpen(
+                (value) => !value,
+              );
               setNotificationsOpen(false);
             }}
             className="flex items-center gap-2 rounded-xl px-1.5 py-1.5 transition-colors hover:bg-[var(--surface-soft)] sm:pl-2"
@@ -201,13 +250,14 @@ export default function Header() {
             aria-expanded={profileOpen}
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]">
-              {initials || "VM"}
+              {initials}
             </div>
 
             <div className="hidden text-left lg:block">
               <p className="max-w-[150px] truncate text-xs font-semibold text-[var(--text-primary)]">
                 {merchantName}
               </p>
+
               <p className="text-[10px] text-[var(--text-muted)]">
                 Test Mode
               </p>
@@ -215,7 +265,9 @@ export default function Header() {
 
             <ChevronDown
               className={`hidden h-4 w-4 text-[var(--text-muted)] transition-transform sm:block ${
-                profileOpen ? "rotate-180" : ""
+                profileOpen
+                  ? "rotate-180"
+                  : ""
               }`}
             />
           </button>
@@ -225,16 +277,18 @@ export default function Header() {
               <div className="border-b border-[var(--border)] bg-[var(--surface-soft)] p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-sm font-bold text-[var(--brand)]">
-                    {initials || "VM"}
+                    {initials}
                   </div>
 
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">
                       {merchantName}
                     </p>
+
                     <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
                       {merchantCode}
                     </p>
+
                     <span className="mt-1.5 inline-flex text-[9px] font-semibold uppercase tracking-wider text-[var(--success)]">
                       ● Active account
                     </span>
@@ -247,12 +301,18 @@ export default function Header() {
                   type="button"
                   onClick={() => {
                     setProfileOpen(false);
-                    router.push("/settings#profile");
+                    router.push(
+                      "/settings#profile",
+                    );
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
                 >
                   <UserRound className="h-4 w-4" />
-                  <span className="flex-1">Merchant Profile</span>
+
+                  <span className="flex-1">
+                    Merchant Profile
+                  </span>
+
                   <span className="text-[10px] text-[var(--text-muted)]">
                     View
                   </span>
@@ -267,6 +327,7 @@ export default function Header() {
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
                 >
                   <Settings className="h-4 w-4" />
+
                   Settings
                 </button>
 
@@ -278,6 +339,7 @@ export default function Header() {
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"
                 >
                   <LogOut className="h-4 w-4" />
+
                   Sign out
                 </button>
               </div>
@@ -308,15 +370,19 @@ function NotificationItem({
 
   return (
     <div className="flex gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--surface-soft)]">
-      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
+      <span
+        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass}`}
+      />
 
       <div className="min-w-0">
         <p className="text-xs font-semibold text-[var(--text-primary)]">
           {title}
         </p>
+
         <p className="mt-1 text-[11px] leading-4 text-[var(--text-secondary)]">
           {description}
         </p>
+
         <p className="mt-1.5 text-[10px] text-[var(--text-muted)]">
           {time}
         </p>

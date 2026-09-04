@@ -5,7 +5,6 @@ import {
   Check,
   Code2,
   CreditCard,
-  ExternalLink,
   Lock,
   Save,
   ShieldCheck,
@@ -15,98 +14,55 @@ import {
 import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/Card";
-import {
-  getCurrentMerchant,
-  type Merchant,
-} from "@/lib/api";
 
 export default function SettingsPage() {
-  const [merchant, setMerchant] =
-    useState<Merchant | null>(null);
-
-  const [merchantLoading, setMerchantLoading] =
-    useState(true);
-
-  const [merchantError, setMerchantError] =
-    useState<string | null>(null);
-
   const [automation, setAutomation] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [weeklyReports, setWeeklyReports] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    async function loadMerchant() {
-      try {
-        setMerchantLoading(true);
-        setMerchantError(null);
-
-        const token = localStorage.getItem(
-          "recoverai_access_token",
-        );
-
-        if (!token) {
-          setMerchantError(
-            "Authentication session not found.",
-          );
-          return;
-        }
-
-        const result = await getCurrentMerchant(token);
-
-        setMerchant(result);
-      } catch (err) {
-        setMerchantError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load merchant profile.",
-        );
-      } finally {
-        setMerchantLoading(false);
-      }
-    }
-
-    void loadMerchant();
-
     const raw = localStorage.getItem(
       "recoverai_preferences",
     );
 
-    if (raw) {
-      try {
-        const preferences = JSON.parse(raw) as {
-          automation?: boolean;
-          notifications?: boolean;
-          weeklyReports?: boolean;
-        };
+    if (!raw) {
+      return;
+    }
 
-        if (
-          typeof preferences.automation ===
-          "boolean"
-        ) {
-          setAutomation(preferences.automation);
-        }
+    try {
+      const preferences = JSON.parse(raw) as {
+        automation?: boolean;
+        notifications?: boolean;
+        weeklyReports?: boolean;
+      };
 
-        if (
-          typeof preferences.notifications ===
-          "boolean"
-        ) {
-          setNotifications(
-            preferences.notifications,
-          );
-        }
-
-        if (
-          typeof preferences.weeklyReports ===
-          "boolean"
-        ) {
-          setWeeklyReports(
-            preferences.weeklyReports,
-          );
-        }
-      } catch {
-        // Ignore malformed local preferences.
+      if (
+        typeof preferences.automation ===
+        "boolean"
+      ) {
+        setAutomation(preferences.automation);
       }
+
+      if (
+        typeof preferences.notifications ===
+        "boolean"
+      ) {
+        setNotifications(
+          preferences.notifications,
+        );
+      }
+
+      if (
+        typeof preferences.weeklyReports ===
+        "boolean"
+      ) {
+        setWeeklyReports(
+          preferences.weeklyReports,
+        );
+      }
+    } catch {
+      // Ignore malformed local preferences.
     }
   }, []);
 
@@ -127,11 +83,8 @@ export default function SettingsPage() {
     }, 1800);
   }
 
-  const businessName =
-    merchant?.business_name ?? "RecoverAI Merchant";
-
-  const merchantCode =
-    merchant?.merchant_code ?? "—";
+  const businessName = "RecoverAI Merchant";
+  const merchantCode = "RECOVERAI";
 
   const initials =
     businessName
@@ -161,69 +114,50 @@ export default function SettingsPage() {
       </div>
 
       {/* Profile */}
-      <Card id="profile" className="scroll-mt-24 p-5 sm:p-6">
+      <Card
+        id="profile"
+        className="scroll-mt-24 p-5 sm:p-6"
+      >
         <SectionHeading
           icon={<UserRound className="h-4 w-4" />}
           title="Merchant Profile"
           description="Identity and business information connected to this workspace."
         />
 
-        {merchantError && (
-          <div className="mt-5 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3">
-            <p className="text-xs font-medium text-[var(--danger)]">
-              {merchantError}
-            </p>
-          </div>
-        )}
-
         <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand-soft)] text-xl font-bold text-[var(--brand)]">
-            {merchantLoading ? "…" : initials}
+            {initials}
           </div>
 
           <div className="grid flex-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <InfoItem
               label="Business name"
-              value={
-                merchantLoading
-                  ? "Loading..."
-                  : businessName
-              }
+              value={businessName}
             />
 
             <InfoItem
               label="Merchant ID"
-              value={
-                merchantLoading
-                  ? "Loading..."
-                  : merchantCode
-              }
+              value={merchantCode}
             />
 
             <InfoItem
               label="Email"
-              value={
-                merchantLoading
-                  ? "Loading..."
-                  : merchant?.email ?? "—"
-              }
+              value="merchant@example.com"
             />
 
             <InfoItem
               label="Country"
-              value={merchant?.country ?? "IN"}
+              value="IN"
             />
 
             <InfoItem
               label="Currency"
-              value={merchant?.currency ?? "INR"}
+              value="INR"
             />
 
             <InfoItem
               label="Timezone"
-              value={
-                merchant?.timezone ?? "Asia/Kolkata"
-              }
+              value="Asia/Kolkata"
             />
           </div>
         </div>
@@ -250,7 +184,6 @@ export default function SettingsPage() {
             detail="Escalate cases when stopping rules or recovery limits are reached."
             value={true}
             onChange={() => undefined}
-            disabled
           />
         </div>
       </Card>
@@ -353,7 +286,6 @@ export default function SettingsPage() {
           >
             <Code2 className="h-4 w-4" />
             API Documentation
-            <ExternalLink className="h-3.5 w-3.5" />
           </button>
 
           <button
@@ -364,7 +296,7 @@ export default function SettingsPage() {
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-soft)]"
           >
             <ShieldCheck className="h-4 w-4" />
-            Refresh integration status
+            Integration status
           </button>
         </div>
       </Card>
@@ -446,13 +378,11 @@ function ToggleRow({
   detail,
   value,
   onChange,
-  disabled = false,
 }: {
   title: string;
   detail: string;
   value: boolean;
   onChange: (value: boolean) => void;
-  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-5 py-4">
@@ -468,19 +398,12 @@ function ToggleRow({
 
       <button
         type="button"
-        onClick={() =>
-          !disabled && onChange(!value)
-        }
+        onClick={() => onChange(!value)}
         aria-pressed={value}
-        disabled={disabled}
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
           value
             ? "bg-[var(--brand)]"
             : "bg-[var(--border-strong)]"
-        } ${
-          disabled
-            ? "cursor-not-allowed opacity-80"
-            : ""
         }`}
       >
         <span
@@ -506,6 +429,7 @@ function SecurityItem({
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 text-[var(--success)]" />
+
         <p className="text-xs font-semibold">
           {title}
         </p>
@@ -533,6 +457,7 @@ function DeveloperItem({
 
       <div className="mt-2 flex items-center gap-2">
         <CreditCard className="h-4 w-4 text-[var(--brand)]" />
+
         <p className="text-sm font-semibold">
           {value}
         </p>
