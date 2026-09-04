@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useAnalytics } from "@/hooks/useAnalytics";
+
 import {
   Activity,
   AlertTriangle,
@@ -43,8 +45,8 @@ import {
   formatCurrency,
   labelFromEnum,
 } from "@/lib/utils";
+
 import {
-  mockAnalytics,
   mockAuditEvents,
   mockRecoveryCases,
   mockTransactions,
