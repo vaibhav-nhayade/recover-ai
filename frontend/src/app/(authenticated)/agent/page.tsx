@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -22,138 +22,164 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { mockAgentSteps } from "@/data/mock";
 
-type RunMode = "SUCCESS" | "ESCALATION";
-type State = "IDLE" | "RUNNING" | "SUCCESS" | "ESCALATED";
+import {
+  runRecoveryAgent,
+  type RecoveryAgentRunResponse,
+} from "@/lib/api";
 
-const stepDescriptions = [
-  "Detects the failed payment and identifies revenue exposure.",
-  "Analyzes customer payment history, transaction context and prior outcomes.",
-  "Determines the likely failure reason and recovery probability.",
-  "Selects the highest-confidence intervention within configured policy.",
-  "Validates amount, retry limits and automation eligibility.",
-  "Creates the bounded recovery action for the selected channel.",
-  "Records the recovery communication and execution outcome.",
-  "Verifies whether the payment was successfully recovered.",
+type State =
+  | "IDLE"
+  | "RUNNING"
+  | "SUCCESS"
+  | "ESCALATED";
+
+const workflowSteps = [
+  "Detect failed transactions and identify revenue exposure.",
+  "Analyze customer and transaction context.",
+  "Score recovery probability and confidence.",
+  "Select the highest-confidence intervention.",
+  "Validate policy, amount and retry limits.",
+  "Execute the bounded recovery action.",
+  "Record the intervention outcome.",
+  "Verify recovery or escalate for human review.",
 ];
 
-const successStepResults = [
-  "₹24,999 revenue exposure identified.",
-  "18 successful payments and 3 historical failures analyzed.",
-  "UPI timeout classified as recoverable.",
-  "Switch payment method selected.",
-  "Policy checks passed.",
-  "Recovery payment link generated.",
-  "Recovery notification delivered.",
-  "Payment verification successful.",
-];
-
-const escalationStepResults = [
-  "₹24,999 revenue exposure identified.",
-  "Customer history analyzed.",
-  "Failure classified with insufficient recovery confidence.",
-  "Escalation strategy selected.",
-  "Policy checks passed.",
-  "Retry threshold reached.",
-  "No further automated notification sent.",
-  "Case routed for merchant review.",
+const stepResults = [
+  "Failed revenue exposure identified.",
+  "Transaction context and recovery signals analyzed.",
+  "Recovery probability calculated.",
+  "AI intervention selected within policy.",
+  "Stopping rules and execution guardrails evaluated.",
+  "Bounded intervention executed.",
+  "Outcome recorded in the recovery audit trail.",
+  "Recovery outcome verified or case escalated.",
 ];
 
 export default function AgentPage() {
-  const [mode, setMode] = useState<RunMode>("SUCCESS");
-  const [state, setState] = useState<State>("IDLE");
-  const [step, setStep] = useState(-1);
+  const [state, setState] =
+    useState<State>("IDLE");
 
-  useEffect(() => {
-    if (state !== "RUNNING") return;
+  const [step, setStep] =
+    useState(-1);
 
-    if (step < mockAgentSteps.length - 1) {
-      const timer = window.setTimeout(() => {
-        setStep((current) => current + 1);
-      }, 850);
+  const [result, setResult] =
+    useState<RecoveryAgentRunResponse | null>(
+      null,
+    );
 
-      return () => window.clearTimeout(timer);
+  const [error, setError] =
+    useState<string | null>(null);
+
+  async function start() {
+    try {
+      setState("RUNNING");
+      setStep(0);
+      setResult(null);
+      setError(null);
+
+      for (
+        let index = 1;
+        index < workflowSteps.length;
+        index += 1
+      ) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(
+            resolve,
+            350,
+          );
+        });
+
+        setStep(index);
+      }
+
+      const agentResult =
+        await runRecoveryAgent(100);
+
+      setResult(agentResult);
+
+      if (
+        agentResult.escalated_cases > 0 &&
+        agentResult.recovered_cases === 0
+      ) {
+        setState("ESCALATED");
+      } else {
+        setState("SUCCESS");
+      }
+
+      setStep(
+        workflowSteps.length - 1,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to execute recovery agent.",
+      );
+
+      setState("ESCALATED");
     }
-
-    const timer = window.setTimeout(() => {
-      setState(mode === "SUCCESS" ? "SUCCESS" : "ESCALATED");
-    }, 900);
-
-    return () => window.clearTimeout(timer);
-  }, [mode, state, step]);
-
-  function start() {
-    setState("RUNNING");
-    setStep(0);
   }
 
   function reset() {
     setState("IDLE");
     setStep(-1);
+    setResult(null);
+    setError(null);
   }
 
-  const currentStepResults =
-    mode === "SUCCESS"
-      ? successStepResults
-      : escalationStepResults;
-
-  const completedSteps = Math.max(step, 0);
-
   const progress = useMemo(() => {
-    if (state === "IDLE") return 0;
+    if (state === "IDLE") {
+      return 0;
+    }
 
-    if (state === "SUCCESS" || state === "ESCALATED") {
+    if (
+      state === "SUCCESS" ||
+      state === "ESCALATED"
+    ) {
       return 100;
     }
 
     return Math.round(
-      ((step + 1) / mockAgentSteps.length) * 100,
+      ((step + 1) /
+        workflowSteps.length) *
+        100,
     );
   }, [state, step]);
 
+  const completedSteps =
+    state === "IDLE"
+      ? 0
+      : Math.max(
+          step,
+          0,
+        );
+
   return (
     <div className="page-container data-grid-background animate-fade-in">
-      {/* ------------------------------------------------------------------ */}
-      {/* Header                                                             */}
-      {/* ------------------------------------------------------------------ */}
-
       <PageHeader
         title="Recovery Agent"
         description="Observe the autonomous detect → diagnose → policy → execute → verify recovery workflow."
         action={
           <div className="flex flex-col gap-2 sm:flex-row">
-            <select
-              value={mode}
-              onChange={(event) => {
-                setMode(event.target.value as RunMode);
-                reset();
-              }}
-              className="h-10 rounded-xl border border-border bg-surface px-3 text-sm font-medium text-primary outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/10"
-            >
-              <option value="SUCCESS">
-                Success scenario
-              </option>
-
-              <option value="ESCALATION">
-                Escalation scenario
-              </option>
-            </select>
-
             <Button
-              onClick={state === "RUNNING" ? undefined : start}
-              disabled={state === "RUNNING"}
+              onClick={
+                state === "RUNNING"
+                  ? undefined
+                  : start
+              }
+              disabled={
+                state === "RUNNING"
+              }
             >
               <Play className="mr-2 h-4 w-4" />
-              {state === "RUNNING" ? "Agent running..." : "Start Run"}
+              {state === "RUNNING"
+                ? "Agent running..."
+                : "Start Run"}
             </Button>
           </div>
         }
       />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Agent status banner                                                */}
-      {/* ------------------------------------------------------------------ */}
 
       <section className="mb-5 grid gap-4 md:grid-cols-3">
         <Card className="p-5">
@@ -181,7 +207,7 @@ export default function AgentPage() {
                   {state === "RUNNING"
                     ? "Executing"
                     : state === "SUCCESS"
-                      ? "Recovered"
+                      ? "Completed"
                       : state === "ESCALATED"
                         ? "Escalated"
                         : "Ready"}
@@ -209,7 +235,9 @@ export default function AgentPage() {
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#ebe7de]">
                 <div
                   className="h-full rounded-full bg-brand transition-all duration-500"
-                  style={{ width: `${progress}%` }}
+                  style={{
+                    width: `${progress}%`,
+                  }}
                 />
               </div>
             </div>
@@ -243,23 +271,18 @@ export default function AgentPage() {
         </Card>
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Target case + workflow                                             */}
-      {/* ------------------------------------------------------------------ */}
-
       <section className="mb-5">
         <Card className="overflow-hidden">
-          {/* Case header */}
           <div className="border-b border-border p-5 sm:p-6">
             <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="status-pill danger">
-                    HIGH PRIORITY
+                    AUTONOMOUS RUN
                   </span>
 
                   <span className="analysis-tag">
-                    PAYMENT FAILURE
+                    BATCH EVALUATION
                   </span>
 
                   <span className="analysis-tag">
@@ -268,43 +291,46 @@ export default function AgentPage() {
                 </div>
 
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
-                  Target case
+                  Recovery batch
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold tracking-tight text-primary">
-                  PAY_83921
+                  RecoverAI Agent
                 </h2>
 
                 <p className="mt-1 text-sm text-secondary">
-                  Customer CUS_1042 · UPI timeout · 3 previous attempts
+                  Detect → diagnose → authorize → execute
+                  → verify
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-6 lg:min-w-[340px]">
                 <div>
                   <p className="kpi-label">
-                    Revenue at risk
+                    Cases processed
                   </p>
 
-                  <p className="mt-2 text-2xl font-bold text-danger">
-                    ₹24,999
+                  <p className="mt-2 text-2xl font-bold text-primary">
+                    {result?.processed_cases ?? 0}
                   </p>
                 </div>
 
                 <div>
                   <p className="kpi-label">
-                    Recovery probability
+                    Recovered revenue
                   </p>
 
                   <p className="mt-2 text-2xl font-bold text-success">
-                    84%
+                    ₹
+                    {Number(
+                      result?.recovered_revenue ?? 0,
+                    ).toLocaleString("en-IN")}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Workflow header */}
           <div className="border-b border-border bg-surface-soft px-5 py-4 sm:px-6">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
@@ -313,13 +339,15 @@ export default function AgentPage() {
                 </h3>
 
                 <p className="mt-1 text-[11px] text-secondary">
-                  Every step is evaluated before the next action is allowed.
+                  Every step is evaluated before the next
+                  action is allowed.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="analysis-tag">
-                  {completedSteps}/{mockAgentSteps.length} steps
+                  {completedSteps}/
+                  {workflowSteps.length} steps
                 </span>
 
                 {state === "RUNNING" && (
@@ -331,199 +359,232 @@ export default function AgentPage() {
             </div>
           </div>
 
-          {/* Timeline */}
           <div className="p-5 sm:p-7">
             <div className="relative">
               <div className="absolute bottom-8 left-[13px] top-4 w-px bg-border" />
 
               <div className="space-y-1">
-                {mockAgentSteps.map((label, index) => {
-                  const completed = step > index;
-                  const running =
-                    state === "RUNNING" && step === index;
-                  const pending = step < index;
+                {workflowSteps.map(
+                  (label, index) => {
+                    const completed =
+                      state === "SUCCESS" ||
+                      state === "ESCALATED"
+                        ? true
+                        : step > index;
 
-                  return (
-                    <div
-                      key={label}
-                      className={[
-                        "relative flex gap-4 rounded-xl px-2 py-3 transition-all duration-300",
-                        pending
-                          ? "opacity-45"
-                          : "opacity-100",
-                        running
-                          ? "bg-brand-soft/35"
-                          : "",
-                      ].join(" ")}
-                    >
-                      {/* Node */}
-                      <div className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface">
-                        {completed ? (
-                          <CheckCircle2 className="h-5 w-5 text-success" />
-                        ) : running ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-brand" />
-                        ) : (
-                          <Circle className="h-5 w-5 text-border-strong" />
-                        )}
-                      </div>
+                    const running =
+                      state === "RUNNING" &&
+                      step === index;
 
-                      {/* Content */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-                          <div>
-                            <p
-                              className={[
-                                "text-sm font-bold",
-                                running
-                                  ? "text-brand-dark"
-                                  : "text-primary",
-                              ].join(" ")}
-                            >
-                              {label}
-                            </p>
+                    const pending =
+                      !completed &&
+                      !running;
 
-                            <p className="mt-1 max-w-2xl text-[11px] leading-5 text-secondary">
-                              {stepDescriptions[index] ??
-                                "Recovery workflow operation."}
-                            </p>
-                          </div>
-
-                          <div className="shrink-0">
-                            {completed && (
-                              <span className="status-pill success">
-                                Completed
-                              </span>
-                            )}
-
-                            {running && (
-                              <span className="status-pill info">
-                                Running
-                              </span>
-                            )}
-
-                            {pending && (
-                              <span className="status-pill neutral">
-                                Pending
-                              </span>
-                            )}
-                          </div>
+                    return (
+                      <div
+                        key={label}
+                        className={[
+                          "relative flex gap-4 rounded-xl px-2 py-3 transition-all duration-300",
+                          pending
+                            ? "opacity-45"
+                            : "opacity-100",
+                          running
+                            ? "bg-brand-soft/35"
+                            : "",
+                        ].join(" ")}
+                      >
+                        <div className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface">
+                          {completed ? (
+                            <CheckCircle2 className="h-5 w-5 text-success" />
+                          ) : running ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-brand" />
+                          ) : (
+                            <Circle className="h-5 w-5 text-border-strong" />
+                          )}
                         </div>
 
-                        {(completed || running) && (
-                          <div
-                            className={[
-                              "mt-3 rounded-lg border px-3 py-2",
-                              running
-                                ? "border-brand/15 bg-brand-soft/30"
-                                : "border-border bg-surface-soft",
-                            ].join(" ")}
-                          >
-                            <div className="flex items-start gap-2">
-                              {running ? (
-                                <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-brand" />
-                              ) : (
-                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-                              )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                            <div>
+                              <p
+                                className={[
+                                  "text-sm font-bold",
+                                  running
+                                    ? "text-brand-dark"
+                                    : "text-primary",
+                                ].join(" ")}
+                              >
+                                {label}
+                              </p>
 
-                              <p className="text-[10px] font-medium leading-5 text-secondary">
-                                {running
-                                  ? "Agent executing this operation and waiting for the result..."
-                                  : currentStepResults[index]}
+                              <p className="mt-1 max-w-2xl text-[11px] leading-5 text-secondary">
+                                {stepResults[index]}
                               </p>
                             </div>
+
+                            <div className="shrink-0">
+                              {completed && (
+                                <span className="status-pill success">
+                                  Completed
+                                </span>
+                              )}
+
+                              {running && (
+                                <span className="status-pill info">
+                                  Running
+                                </span>
+                              )}
+
+                              {pending && (
+                                <span className="status-pill neutral">
+                                  Pending
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        )}
+
+                          {(completed ||
+                            running) && (
+                            <div
+                              className={[
+                                "mt-3 rounded-lg border px-3 py-2",
+                                running
+                                  ? "border-brand/15 bg-brand-soft/30"
+                                  : "border-border bg-surface-soft",
+                              ].join(" ")}
+                            >
+                              <div className="flex items-start gap-2">
+                                {running ? (
+                                  <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-brand" />
+                                ) : (
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                                )}
+
+                                <p className="text-[10px] font-medium leading-5 text-secondary">
+                                  {running
+                                    ? "Agent executing this operation and waiting for the result..."
+                                    : stepResults[index]}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  },
+                )}
               </div>
             </div>
           </div>
 
-          {/* Result */}
-          {state === "SUCCESS" && (
+          {result && (
             <div className="border-t border-border p-5 sm:p-6">
               <div className="rounded-xl border border-success/20 bg-success-soft p-5">
-                <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-
-                      <p className="font-bold text-success">
-                        Recovery successful
-                      </p>
-                    </div>
-
-                    <p className="mt-2 text-2xl font-bold tracking-tight text-primary">
-                      ₹24,999 recovered
+                    <p className="kpi-label">
+                      Run ID
                     </p>
 
-                    <p className="mt-1 text-sm text-secondary">
-                      Payment verified after the recovery intervention ·
-                      17 minutes
+                    <p className="mt-1 truncate text-xs font-bold text-primary">
+                      {result.run_id}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-5">
-                    <div>
-                      <p className="kpi-label">
-                        Outcome
-                      </p>
+                  <div>
+                    <p className="kpi-label">
+                      Processed
+                    </p>
 
-                      <p className="mt-1 text-sm font-bold text-primary">
-                        Verified
-                      </p>
-                    </div>
+                    <p className="mt-1 text-lg font-bold text-primary">
+                      {result.processed_cases}
+                    </p>
+                  </div>
 
-                    <div>
-                      <p className="kpi-label">
-                        Policy
-                      </p>
+                  <div>
+                    <p className="kpi-label">
+                      Recovered
+                    </p>
 
-                      <p className="mt-1 text-sm font-bold text-success">
-                        Passed
-                      </p>
-                    </div>
+                    <p className="mt-1 text-lg font-bold text-success">
+                      {result.recovered_cases}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="kpi-label">
+                      Escalated
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold text-warning">
+                      {result.escalated_cases}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="kpi-label">
+                      Blocked
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold text-danger">
+                      {result.blocked_cases}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {state === "ESCALATED" && (
+          {error && (
             <div className="border-t border-border p-5 sm:p-6">
               <div className="rounded-xl border border-warning/20 bg-warning-soft p-5">
-                <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="h-5 w-5 shrink-0 text-warning" />
+
                   <div>
-                    <div className="flex items-center gap-2">
-                      <ShieldAlert className="h-5 w-5 text-warning" />
+                    <p className="font-bold text-warning">
+                      Agent execution stopped
+                    </p>
 
-                      <p className="font-bold text-warning">
-                        Agent escalated for human review
-                      </p>
-                    </div>
-
-                    <p className="mt-2 text-sm leading-6 text-secondary">
-                      The stopping rule was triggered after the maximum
-                      permitted automated recovery path. No additional
-                      automated financial action was taken.
+                    <p className="mt-1 text-sm leading-6 text-secondary">
+                      {error}
                     </p>
                   </div>
-
-                  <span className="status-pill warning">
-                    HUMAN REVIEW REQUIRED
-                  </span>
                 </div>
               </div>
             </div>
           )}
+
+          {state === "ESCALATED" &&
+            !error && (
+              <div className="border-t border-border p-5 sm:p-6">
+                <div className="rounded-xl border border-warning/20 bg-warning-soft p-5">
+                  <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-warning" />
+
+                        <p className="font-bold text-warning">
+                          Agent escalated cases for human review
+                        </p>
+                      </div>
+
+                      <p className="mt-2 text-sm leading-6 text-secondary">
+                        RecoverAI applied its stopping rules and
+                        did not continue uncontrolled automated
+                        financial actions.
+                      </p>
+                    </div>
+
+                    <span className="status-pill warning">
+                      HUMAN REVIEW REQUIRED
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
         </Card>
       </section>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Agent controls                                                      */}
-      {/* ------------------------------------------------------------------ */}
 
       <section className="mb-5">
         <div className="section-header">
@@ -619,7 +680,7 @@ export default function AgentPage() {
                 </p>
 
                 <p className="mt-1 text-[11px] leading-5 text-secondary">
-                  Demo execution uses the existing bounded provider layer.
+                  Execution is bounded by the configured provider layer.
                 </p>
 
                 <p className="mt-3 text-xs font-bold text-primary">
@@ -631,10 +692,6 @@ export default function AgentPage() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Explainability                                                      */}
-      {/* ------------------------------------------------------------------ */}
-
       <section className="mb-8">
         <Card className="overflow-hidden">
           <div className="border-b border-border p-5 sm:p-6">
@@ -645,12 +702,11 @@ export default function AgentPage() {
 
               <div>
                 <h2 className="text-base font-bold text-primary">
-                  Why this action was selected
+                  Agent run result
                 </h2>
 
                 <p className="mt-1 text-xs leading-5 text-secondary">
-                  The agent exposes its decision context instead of behaving
-                  like a black-box automation.
+                  This panel reflects the actual backend agent execution.
                 </p>
               </div>
             </div>
@@ -659,46 +715,53 @@ export default function AgentPage() {
           <div className="grid gap-px bg-border md:grid-cols-3">
             <div className="bg-surface p-5">
               <p className="kpi-label">
-                Revenue exposure
-              </p>
-
-              <p className="mt-2 text-xl font-bold text-danger">
-                ₹24,999
-              </p>
-
-              <p className="mt-2 text-[11px] leading-5 text-secondary">
-                The failed transaction represents immediately recoverable
-                revenue exposure.
-              </p>
-            </div>
-
-            <div className="bg-surface p-5">
-              <p className="kpi-label">
-                Customer signal
-              </p>
-
-              <p className="mt-2 text-xl font-bold text-primary">
-                Strong
-              </p>
-
-              <p className="mt-2 text-[11px] leading-5 text-secondary">
-                Previous successful payment history increases the estimated
-                probability of recovery.
-              </p>
-            </div>
-
-            <div className="bg-surface p-5">
-              <p className="kpi-label">
-                Selected intervention
+                Revenue recovered
               </p>
 
               <p className="mt-2 text-xl font-bold text-success">
-                Alternate method
+                ₹
+                {Number(
+                  result?.recovered_revenue ?? 0,
+                ).toLocaleString("en-IN")}
               </p>
 
               <p className="mt-2 text-[11px] leading-5 text-secondary">
-                A payment-method switch is preferred over repeated failed
-                attempts under the current policy.
+                Verified recovery outcome recorded by the
+                agent workflow.
+              </p>
+            </div>
+
+            <div className="bg-surface p-5">
+              <p className="kpi-label">
+                Cases escalated
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-warning">
+                {result?.escalated_cases ?? 0}
+              </p>
+
+              <p className="mt-2 text-[11px] leading-5 text-secondary">
+                Cases that reached controlled human-review
+                escalation.
+              </p>
+            </div>
+
+            <div className="bg-surface p-5">
+              <p className="kpi-label">
+                Execution status
+              </p>
+
+              <p className="mt-2 text-xl font-bold text-primary">
+                {state === "RUNNING"
+                  ? "Executing"
+                  : result
+                    ? "Completed"
+                    : "Ready"}
+              </p>
+
+              <p className="mt-2 text-[11px] leading-5 text-secondary">
+                Autonomous execution remains bounded by
+                policy and stopping rules.
               </p>
             </div>
           </div>
@@ -710,8 +773,8 @@ export default function AgentPage() {
               </p>
 
               <p className="mt-1 text-[11px] text-secondary">
-                Every important agent decision is represented in the audit
-                trail.
+                Agent decisions and recovery actions are persisted
+                in the audit trail.
               </p>
             </div>
 
@@ -726,21 +789,18 @@ export default function AgentPage() {
         </Card>
       </section>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Reset                                                               */}
-      {/* ------------------------------------------------------------------ */}
-
-      {state !== "IDLE" && state !== "RUNNING" && (
-        <div className="flex justify-end pb-8">
-          <Button
-            variant="secondary"
-            onClick={reset}
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset demo
-          </Button>
-        </div>
-      )}
+      {state !== "IDLE" &&
+        state !== "RUNNING" && (
+          <div className="flex justify-end pb-8">
+            <Button
+              variant="secondary"
+              onClick={reset}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reset run
+            </Button>
+          </div>
+        )}
     </div>
   );
 }
