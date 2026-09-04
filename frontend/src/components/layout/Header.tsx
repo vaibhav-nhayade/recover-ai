@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -7,6 +8,7 @@ import {
   Settings,
   UserRound,
 } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentMerchant, type Merchant } from "@/lib/api";
