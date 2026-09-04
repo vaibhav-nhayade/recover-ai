@@ -12,6 +12,7 @@ from app.api.v1.recovery_batch import router as recovery_batch_router
 from app.api.v1.recovery_outcomes import router as recovery_outcomes_router
 from app.api.v1.recovery_agent import router as recovery_agent_router
 from app.api.v1.audit import router as audit_router
+from app.api.v1.analytics import router as analytics_router
 from app.core.config import settings
 
 
@@ -78,6 +79,12 @@ app.include_router(
     recovery_outcomes_router,
     prefix="/api/v1",
 )
+app.include_router(
+    analytics_router,
+    prefix="/api/v1",
+)
+
+
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
