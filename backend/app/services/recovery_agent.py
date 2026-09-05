@@ -12,8 +12,8 @@ from app.models.recovery_case import RecoveryCase
 from app.models.transaction import Transaction
 from app.services.audit_service import record_audit_event
 from app.services.recovery_batch import evaluate_transaction
-from app.services.recovery_outcome import record_recovery_outcome
 from app.services.recovery_config import MAX_RECOVERY_ATTEMPTS
+from app.services.recovery_outcome import record_recovery_outcome
 from app.services.recovery_retry import (
     count_recovery_attempts,
     get_retry_decision,
@@ -236,7 +236,9 @@ def run_recovery_agent(
                     case_id=case.id,
                     transaction_id=case.transaction_id,
                     transaction_reference="UNKNOWN",
-                    amount_at_risk=Decimal(case.amount_at_risk),
+                    amount_at_risk=Decimal(
+                        case.amount_at_risk
+                    ),
                     action="MANUAL_REVIEW",
                     status="ESCALATED",
                     recovered_amount=Decimal("0"),
@@ -260,12 +262,23 @@ def run_recovery_agent(
             actor="RECOVERAI_AGENT",
             action="EVALUATE_RECOVERY",
             status=case.status,
-            reason="Recovery case selected for autonomous agent evaluation.",
+            reason=(
+                "Recovery case selected for autonomous "
+                "agent evaluation."
+            ),
             event_data={
-                "transaction_reference": transaction.transaction_reference,
-                "amount_at_risk": str(case.amount_at_risk),
-                "payment_method": transaction.payment_method,
-                "failure_reason": transaction.failure_reason,
+                "transaction_reference": (
+                    transaction.transaction_reference
+                ),
+                "amount_at_risk": str(
+                    case.amount_at_risk
+                ),
+                "payment_method": (
+                    transaction.payment_method
+                ),
+                "failure_reason": (
+                    transaction.failure_reason
+                ),
             },
         )
 
@@ -292,9 +305,15 @@ def run_recovery_agent(
                     status="CLOSED",
                     reason=retry_decision.reason,
                     event_data={
-                        "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
-                        "attempt_count": retry_decision.attempt_count,
-                        "remaining_attempts": retry_decision.remaining_attempts,
+                        "maximum_attempts": (
+                            MAX_RECOVERY_ATTEMPTS
+                        ),
+                        "attempt_count": (
+                            retry_decision.attempt_count
+                        ),
+                        "remaining_attempts": (
+                            retry_decision.remaining_attempts
+                        ),
                         "escalation_required": True,
                     },
                 )
@@ -312,8 +331,12 @@ def run_recovery_agent(
                     event_data={
                         "autonomous_execution": False,
                         "escalation_required": True,
-                        "attempt_count": retry_decision.attempt_count,
-                        "remaining_attempts": retry_decision.remaining_attempts,
+                        "attempt_count": (
+                            retry_decision.attempt_count
+                        ),
+                        "remaining_attempts": (
+                            retry_decision.remaining_attempts
+                        ),
                     },
                 )
 
@@ -322,15 +345,21 @@ def run_recovery_agent(
                 results.append(
                     AgentCaseResult(
                         case_id=case.id,
-                        transaction_id=transaction.id,
-                        transaction_reference=transaction.transaction_reference,
-                        amount_at_risk=Decimal(case.amount_at_risk),
+                        transaction_id=case.transaction_id,
+                        transaction_reference=(
+                            transaction.transaction_reference
+                        ),
+                        amount_at_risk=Decimal(
+                            case.amount_at_risk
+                        ),
                         action="MANUAL_REVIEW",
                         status="ESCALATED",
                         recovered_amount=Decimal("0"),
                         escalation_required=True,
                         reason=retry_decision.reason,
-                        attempt_count=retry_decision.attempt_count,
+                        attempt_count=(
+                            retry_decision.attempt_count
+                        ),
                     )
                 )
 
@@ -348,23 +377,36 @@ def run_recovery_agent(
                     status=case.status,
                     reason=retry_decision.reason,
                     event_data={
-                        "attempt_count": retry_decision.attempt_count,
-                        "remaining_attempts": retry_decision.remaining_attempts,
+                        "attempt_count": (
+                            retry_decision.attempt_count
+                        ),
+                        "remaining_attempts": (
+                            retry_decision.remaining_attempts
+                        ),
                     },
                 )
 
                 results.append(
                     AgentCaseResult(
                         case_id=case.id,
-                        transaction_id=transaction.id,
-                        transaction_reference=transaction.transaction_reference,
-                        amount_at_risk=Decimal(case.amount_at_risk),
-                        action=case.recovery_strategy or "NONE",
+                        transaction_id=case.transaction_id,
+                        transaction_reference=(
+                            transaction.transaction_reference
+                        ),
+                        amount_at_risk=Decimal(
+                            case.amount_at_risk
+                        ),
+                        action=(
+                            case.recovery_strategy
+                            or "NONE"
+                        ),
                         status=case.status,
                         recovered_amount=Decimal("0"),
                         escalation_required=False,
                         reason=retry_decision.reason,
-                        attempt_count=retry_decision.attempt_count,
+                        attempt_count=(
+                            retry_decision.attempt_count
+                        ),
                     )
                 )
 
@@ -386,21 +428,28 @@ def run_recovery_agent(
             status=case.status,
             reason="AI recovery evaluation completed.",
             event_data={
-                "recovery_probability": evaluation.recovery_probability,
+                "recovery_probability": (
+                    evaluation.recovery_probability
+                ),
                 "recovery_probability_percent": round(
                     evaluation.recovery_probability * 100,
                     2,
                 ),
-                "recommended_strategy": evaluation.recommended_strategy,
+                "recommended_strategy": (
+                    evaluation.recommended_strategy
+                ),
                 "risk_band": evaluation.risk_band,
                 "confidence": evaluation.confidence,
             },
         )
 
-        if evaluation.recovery_probability < AUTONOMOUS_MIN_PROBABILITY:
+        if (
+            evaluation.recovery_probability
+            < AUTONOMOUS_MIN_PROBABILITY
+        ):
             reason = (
-                "Recovery probability is below the autonomous "
-                f"execution threshold of "
+                "Recovery probability is below the "
+                "autonomous execution threshold of "
                 f"{AUTONOMOUS_MIN_PROBABILITY:.0%}."
             )
 
@@ -420,9 +469,13 @@ def run_recovery_agent(
                 status="CLOSED",
                 reason=reason,
                 event_data={
-                    "recovery_probability": evaluation.recovery_probability,
+                    "recovery_probability": (
+                        evaluation.recovery_probability
+                    ),
                     "threshold": AUTONOMOUS_MIN_PROBABILITY,
-                    "attempt_count": retry_decision.attempt_count,
+                    "attempt_count": (
+                        retry_decision.attempt_count
+                    ),
                     "escalation_required": True,
                 },
             )
@@ -440,7 +493,9 @@ def run_recovery_agent(
                 event_data={
                     "autonomous_execution": False,
                     "escalation_required": True,
-                    "recovery_probability": evaluation.recovery_probability,
+                    "recovery_probability": (
+                        evaluation.recovery_probability
+                    ),
                     "threshold": AUTONOMOUS_MIN_PROBABILITY,
                 },
             )
@@ -450,15 +505,21 @@ def run_recovery_agent(
             results.append(
                 AgentCaseResult(
                     case_id=case.id,
-                    transaction_id=transaction.id,
-                    transaction_reference=transaction.transaction_reference,
-                    amount_at_risk=Decimal(case.amount_at_risk),
+                    transaction_id=case.transaction_id,
+                    transaction_reference=(
+                        transaction.transaction_reference
+                    ),
+                    amount_at_risk=Decimal(
+                        case.amount_at_risk
+                    ),
                     action="MANUAL_REVIEW",
                     status="ESCALATED",
                     recovered_amount=Decimal("0"),
                     escalation_required=True,
                     reason=reason,
-                    attempt_count=retry_decision.attempt_count,
+                    attempt_count=(
+                        retry_decision.attempt_count
+                    ),
                 )
             )
 
@@ -473,12 +534,23 @@ def run_recovery_agent(
             actor="RECOVERAI_AGENT",
             action=evaluation.recommended_strategy,
             status="IN_PROGRESS",
-            reason="Autonomous recovery intervention passed policy checks.",
+            reason=(
+                "Autonomous recovery intervention "
+                "passed policy checks."
+            ),
             event_data={
-                "attempt_number": retry_decision.attempt_count + 1,
-                "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
-                "remaining_attempts": retry_decision.remaining_attempts,
-                "recovery_probability": evaluation.recovery_probability,
+                "attempt_number": (
+                    retry_decision.attempt_count + 1
+                ),
+                "maximum_attempts": (
+                    MAX_RECOVERY_ATTEMPTS
+                ),
+                "remaining_attempts": (
+                    retry_decision.remaining_attempts
+                ),
+                "recovery_probability": (
+                    evaluation.recovery_probability
+                ),
                 "confidence": evaluation.confidence,
             },
         )
@@ -500,7 +572,10 @@ def run_recovery_agent(
                 db=db,
                 event_type="INTERVENTION_BLOCKED",
                 actor="RECOVERAI_AGENT",
-                action=case.recovery_strategy or "UNKNOWN",
+                action=(
+                    case.recovery_strategy
+                    or "UNKNOWN"
+                ),
                 status=case.status,
                 reason=str(exc),
                 event_data={
@@ -514,10 +589,17 @@ def run_recovery_agent(
             results.append(
                 AgentCaseResult(
                     case_id=case.id,
-                    transaction_id=transaction.id,
-                    transaction_reference=transaction.transaction_reference,
-                    amount_at_risk=Decimal(case.amount_at_risk),
-                    action=case.recovery_strategy or "NONE",
+                    transaction_id=case.transaction_id,
+                    transaction_reference=(
+                        transaction.transaction_reference
+                    ),
+                    amount_at_risk=Decimal(
+                        case.amount_at_risk
+                    ),
+                    action=(
+                        case.recovery_strategy
+                        or "NONE"
+                    ),
                     status="FAILED",
                     recovered_amount=Decimal("0"),
                     escalation_required=False,
@@ -538,17 +620,16 @@ def run_recovery_agent(
             db,
         )
 
-
-if latest_attempt is not None:
-    recovery_outcome = record_recovery_outcome(
-        merchant_id=merchant_id,
-        case=case,
-        transaction=transaction,
-        attempt=latest_attempt,
-        db=db,
-    )
-else:
-    recovery_outcome = None
+        if latest_attempt is not None:
+            recovery_outcome = record_recovery_outcome(
+                merchant_id=merchant_id,
+                case=case,
+                transaction=transaction,
+                attempt=latest_attempt,
+                db=db,
+            )
+        else:
+            recovery_outcome = None
 
         attempt_count = count_recovery_attempts(
             case.id,
@@ -556,12 +637,16 @@ else:
         )
 
         recovered_amount = (
-    recovery_outcome.recovered_amount
-    if recovery_outcome is not None
-    and recovery_outcome.verification_status == "VERIFIED"
-    and recovery_outcome.outcome == "RECOVERED"
-    else Decimal("0")
-)
+            recovery_outcome.recovered_amount
+            if (
+                recovery_outcome is not None
+                and recovery_outcome.verification_status
+                == "VERIFIED"
+                and recovery_outcome.outcome
+                == "RECOVERED"
+            )
+            else Decimal("0")
+        )
 
         if latest_attempt is not None:
             record_audit_event(
@@ -574,14 +659,22 @@ else:
                 action=latest_attempt.action,
                 status=latest_attempt.status,
                 reason=(
-                    "Recovery intervention completed successfully."
+                    "Recovery intervention completed "
+                    "successfully."
                     if latest_attempt.status == "COMPLETED"
-                    else "Recovery intervention did not recover the transaction."
+                    else (
+                        "Recovery intervention did not "
+                        "recover the transaction."
+                    )
                 ),
                 event_data={
                     "attempt_count": attempt_count,
-                    "provider_reference": latest_attempt.provider_reference,
-                    "recovered_amount": str(recovered_amount),
+                    "provider_reference": (
+                        latest_attempt.provider_reference
+                    ),
+                    "recovered_amount": str(
+                        recovered_amount
+                    ),
                 },
             )
 
@@ -596,27 +689,47 @@ else:
                 db=db,
                 event_type="RECOVERY_COMPLETED",
                 actor="RECOVERAI_AGENT",
-                action=case.recovery_strategy or "UNKNOWN",
+                action=(
+                    case.recovery_strategy
+                    or "UNKNOWN"
+                ),
                 status="RECOVERED",
-                reason="Recovery provider reported a successful recovery.",
+                reason=(
+                    "Recovery provider reported a "
+                    "successful recovery."
+                ),
                 event_data={
-                    "recovered_amount": str(recovered_amount),
+                    "recovered_amount": str(
+                        recovered_amount
+                    ),
                     "attempt_count": attempt_count,
-                    "transaction_reference": transaction.transaction_reference,
+                    "transaction_reference": (
+                        transaction.transaction_reference
+                    ),
                 },
             )
 
             results.append(
                 AgentCaseResult(
                     case_id=case.id,
-                    transaction_id=transaction.id,
-                    transaction_reference=transaction.transaction_reference,
-                    amount_at_risk=Decimal(case.amount_at_risk),
-                    action=case.recovery_strategy or "UNKNOWN",
+                    transaction_id=case.transaction_id,
+                    transaction_reference=(
+                        transaction.transaction_reference
+                    ),
+                    amount_at_risk=Decimal(
+                        case.amount_at_risk
+                    ),
+                    action=(
+                        case.recovery_strategy
+                        or "UNKNOWN"
+                    ),
                     status="RECOVERED",
                     recovered_amount=recovered_amount,
                     escalation_required=False,
-                    reason="Recovery provider reported a successful recovery.",
+                    reason=(
+                        "Recovery provider reported a "
+                        "successful recovery."
+                    ),
                     attempt_count=attempt_count,
                 )
             )
@@ -625,8 +738,10 @@ else:
 
         if attempt_count >= MAX_RECOVERY_ATTEMPTS:
             reason = (
-                "Recovery attempt failed and the maximum autonomous "
-                f"limit of {MAX_RECOVERY_ATTEMPTS} attempts has been reached."
+                "Recovery attempt failed and the maximum "
+                "autonomous limit of "
+                f"{MAX_RECOVERY_ATTEMPTS} attempts has "
+                "been reached."
             )
 
             _escalate_case(
@@ -645,7 +760,9 @@ else:
                 status="CLOSED",
                 reason=reason,
                 event_data={
-                    "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                    "maximum_attempts": (
+                        MAX_RECOVERY_ATTEMPTS
+                    ),
                     "attempt_count": attempt_count,
                     "remaining_attempts": 0,
                     "escalation_required": True,
@@ -665,7 +782,9 @@ else:
                 event_data={
                     "autonomous_execution": False,
                     "escalation_required": True,
-                    "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
+                    "maximum_attempts": (
+                        MAX_RECOVERY_ATTEMPTS
+                    ),
                     "attempt_count": attempt_count,
                 },
             )
@@ -675,9 +794,13 @@ else:
             results.append(
                 AgentCaseResult(
                     case_id=case.id,
-                    transaction_id=transaction.id,
-                    transaction_reference=transaction.transaction_reference,
-                    amount_at_risk=Decimal(case.amount_at_risk),
+                    transaction_id=case.transaction_id,
+                    transaction_reference=(
+                        transaction.transaction_reference
+                    ),
+                    amount_at_risk=Decimal(
+                        case.amount_at_risk
+                    ),
                     action="MANUAL_REVIEW",
                     status="ESCALATED",
                     recovered_amount=Decimal("0"),
@@ -694,15 +817,23 @@ else:
         results.append(
             AgentCaseResult(
                 case_id=case.id,
-                transaction_id=transaction.id,
-                transaction_reference=transaction.transaction_reference,
-                amount_at_risk=Decimal(case.amount_at_risk),
-                action=case.recovery_strategy or "UNKNOWN",
+                transaction_id=case.transaction_id,
+                transaction_reference=(
+                    transaction.transaction_reference
+                ),
+                amount_at_risk=Decimal(
+                    case.amount_at_risk
+                ),
+                action=(
+                    case.recovery_strategy
+                    or "UNKNOWN"
+                ),
                 status=case.status,
                 recovered_amount=Decimal("0"),
                 escalation_required=False,
                 reason=(
-                    "Intervention did not recover revenue. "
+                    "Intervention did not recover "
+                    "revenue. "
                     f"{MAX_RECOVERY_ATTEMPTS - attempt_count} "
                     "autonomous attempt(s) remain."
                 ),
@@ -714,7 +845,7 @@ else:
 
     recovery_rate = (
         float(
-            recovered_revenue / revenue_at_risk,
+            recovered_revenue / revenue_at_risk
         )
         if revenue_at_risk > 0
         else 0.0

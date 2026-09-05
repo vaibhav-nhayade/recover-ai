@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-
-import {
-  mockAnalytics,
-  mockAuditEvents,
-  mockRecoveryCases,
-  mockTransactions,
-} from "@/data/mock";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Activity,
@@ -53,99 +47,47 @@ import {
 
 
 /* -------------------------------------------------------------------------- */
-/* Dashboard data derived from the project's existing demo dataset            */
+/* CSV-backed demo data                                                       */
 /* -------------------------------------------------------------------------- */
 
-const revenueTrend = mockTransactions
-  .slice(0, 8)
-  .map((transaction, index) => ({
-    day: String(index + 1).padStart(2, "0"),
-    atRisk:
-      transaction.status === "FAILED"
-        ? Number(transaction.amount)
-        : 0,
-    recovered:
-      transaction.status === "SUCCESS"
-        ? Number(transaction.amount)
-        : 0,
-  }));
+type DemoTransaction = {
+  transaction_reference: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email: string;
+  amount: number;
+  currency: string;
+  payment_method: string;
+  status: string;
+  failure_reason: string;
+  transaction_attempts: number;
+  customer_successful_transactions: number;
+  customer_failed_transactions: number;
+  occurred_at: string;
+};
 
-const recoveryTypeTotals = mockRecoveryCases.reduce<
-  Record<string, number>
->((totals, item) => {
-  const key = item.type || "UNKNOWN";
-  totals[key] =
-    (totals[key] || 0) + Number(item.amount || 0);
-  return totals;
-}, {});
+type DemoScenario = {
+  case_id: string;
+  transaction_reference: string;
+  recovery_type: string;
+  priority: string;
+  amount_at_risk: number;
+  recovery_probability: number;
+  recommended_strategy: string;
+  expected_recovery: number;
+  escalation_required: boolean;
+  scenario: string;
+};
 
-const recoveryTypeTotalAmount = Object.values(
-  recoveryTypeTotals,
-).reduce((sum, value) => sum + value, 0);
+type DemoData = {
+  transactions: DemoTransaction[];
+  scenarios: DemoScenario[];
+};
 
-const recoveryByType = Object.entries(
-  recoveryTypeTotals,
-).map(([name, amount]) => ({
-  name,
-  amount,
-  value:
-    recoveryTypeTotalAmount > 0
-      ? Math.round(
-          (amount / recoveryTypeTotalAmount) * 100,
-        )
-      : 0,
-}));
-
-const paymentMethodTotals = mockTransactions.reduce<
-  Record<string, { success: number; failed: number }>
->((totals, transaction) => {
-  const method = transaction.paymentMethod || "UNKNOWN";
-
-  if (!totals[method]) {
-    totals[method] = {
-      success: 0,
-      failed: 0,
-    };
-  }
-
-  if (transaction.status === "SUCCESS") {
-    totals[method].success += 1;
-  } else if (transaction.status === "FAILED") {
-    totals[method].failed += 1;
-  }
-
-  return totals;
-}, {});
-
-const paymentMethodData = Object.entries(
-  paymentMethodTotals,
-).map(([name, totals]) => {
-  const total =
-    totals.success + totals.failed;
-
-  return {
-    name,
-    success:
-      total > 0
-        ? Math.round(
-            (totals.success / total) * 100,
-          )
-        : 0,
-    failed:
-      total > 0
-        ? Math.round(
-            (totals.failed / total) * 100,
-          )
-        : 0,
-  };
-});
-
-const recoveryColors = [
-  "#d99a2b",
-  "#169b62",
-  "#3977b8",
-  "#969188",
-];
+const EMPTY_DEMO_DATA: DemoData = {
+  transactions: [],
+  scenarios: [],
+};
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
@@ -198,66 +140,221 @@ function getStatusClass(status: string) {
 /* -------------------------------------------------------------------------- */
 
 export default function DashboardPage() {
-  const analytics = {
-    revenueAtRisk: Number(
-      mockAnalytics.revenueAtRisk ?? 0,
-    ),
-    recoveredRevenue: Number(
-      mockAnalytics.recoveredRevenue ?? 0,
-    ),
-    recoveryRate: Number(
-      mockAnalytics.recoveryRate ?? 0,
-    ),
-    activeCases: Number(
-      mockAnalytics.activeCases ?? 0,
-    ),
-    successfulRecoveries: Number(
-      mockAnalytics.successfulRecoveries ?? 0,
-    ),
-    humanEscalations: Number(
-      mockAnalytics.humanEscalations ?? 0,
-    ),
-    escalationRate: Number(
-      mockAnalytics.escalationRate ?? 0,
-    ),
-    averageRecoveryTimeMinutes: Number(
-      mockAnalytics.averageRecoveryTimeMinutes ?? 0,
-    ),
-    interventionSuccessRate: Number(
-      mockAnalytics.interventionSuccessRate ?? 0,
-    ),
-  };
+  const [demoData, setDemoData] = useState<DemoData>(EMPTY_DEMO_DATA);
+  const [demoDataLoading, setDemoDataLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDemoData() {
+      try {
+        const response = await fetch("/api/demo-data", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Demo data request failed: ${response.status}`);
+        }
+
+        const data = (await response.json()) as DemoData;
+
+        if (!cancelled) {
+          setDemoData(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setDemoData(EMPTY_DEMO_DATA);
+        }
+      } finally {
+        if (!cancelled) {
+          setDemoDataLoading(false);
+        }
+      }
+    }
+
+    loadDemoData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const transactions = demoData.transactions;
+  const scenarios = demoData.scenarios;
+
+  const analytics = useMemo(() => {
+    const revenueAtRisk = scenarios.reduce(
+      (sum, item) => sum + item.amount_at_risk,
+      0,
+    );
+
+    const recoveredRevenue = 0;
+    const activeCases = scenarios.filter(
+      (item) => !item.escalation_required,
+    ).length;
+    const humanEscalations = scenarios.filter(
+      (item) => item.escalation_required,
+    ).length;
+
+    return {
+      revenueAtRisk,
+      recoveredRevenue,
+      recoveryRate: 0,
+      activeCases,
+      successfulRecoveries: 0,
+      humanEscalations,
+      escalationRate:
+        scenarios.length > 0
+          ? Math.round((humanEscalations / scenarios.length) * 1000) / 10
+          : 0,
+      averageRecoveryTimeMinutes: 0,
+      interventionSuccessRate: 0,
+    };
+  }, [scenarios]);
 
   const totalAtRisk = analytics.revenueAtRisk;
   const recoveredRevenue = analytics.recoveredRevenue;
   const recoveryRate = analytics.recoveryRate;
   const activeCases = analytics.activeCases;
 
-  const recentCases = mockRecoveryCases.slice(0, 5);
-  const recentTransactions =
-    mockTransactions.slice(0, 5);
-  const recentAuditEvents =
-    mockAuditEvents.slice(0, 5);
+  const revenueTrend = useMemo(() => {
+    const sorted = [...transactions].sort(
+      (a, b) =>
+        new Date(a.occurred_at).getTime() -
+        new Date(b.occurred_at).getTime(),
+    );
+
+    return sorted.map((transaction) => ({
+      day: new Date(transaction.occurred_at).toLocaleDateString("en-IN", {
+        day: "2-digit",
+      }),
+      atRisk: scenarios
+        .filter((item) => item.transaction_reference === transaction.transaction_reference)
+        .reduce((sum, item) => sum + item.amount_at_risk, 0),
+      recovered: 0,
+    }));
+  }, [transactions, scenarios]);
+
+  const recoveryByType = useMemo(() => {
+    const totals = new Map<string, number>();
+
+    for (const scenario of scenarios) {
+      totals.set(
+        scenario.recovery_type,
+        (totals.get(scenario.recovery_type) ?? 0) + scenario.amount_at_risk,
+      );
+    }
+
+    const total = [...totals.values()].reduce((sum, value) => sum + value, 0);
+
+    return [...totals.entries()].map(([name, amount]) => ({
+      name: labelFromEnum(name),
+      value: total > 0 ? Math.round((amount / total) * 100) : 0,
+      amount,
+    }));
+  }, [scenarios]);
+
+  const recoveryFunnel = useMemo(() => {
+    const diagnosed = scenarios.length;
+    const eligible = scenarios.filter((item) => !item.escalation_required).length;
+    const executed = 0;
+
+    return [
+      {
+        label: "Revenue detected",
+        value: totalAtRisk,
+        percent: 100,
+      },
+      {
+        label: "AI diagnosed",
+        value: totalAtRisk,
+        percent: totalAtRisk > 0 ? 100 : 0,
+      },
+      {
+        label: "Action eligible",
+        value: scenarios
+          .filter((item) => !item.escalation_required)
+          .reduce((sum, item) => sum + item.amount_at_risk, 0),
+        percent: diagnosed > 0 ? Math.round((eligible / diagnosed) * 100) : 0,
+      },
+      {
+        label: "Intervention executed",
+        value: executed,
+        percent: 0,
+      },
+      {
+        label: "Recovered",
+        value: recoveredRevenue,
+        percent: 0,
+      },
+    ];
+  }, [scenarios, totalAtRisk, recoveredRevenue]);
+
+  const paymentMethodData = useMemo(() => {
+    const methods = new Map<string, { success: number; failed: number }>();
+
+    for (const transaction of transactions) {
+      const current = methods.get(transaction.payment_method) ?? {
+        success: 0,
+        failed: 0,
+      };
+
+      if (transaction.status === "SUCCESS") {
+        current.success += 1;
+      } else if (transaction.status === "FAILED") {
+        current.failed += 1;
+      }
+
+      methods.set(transaction.payment_method, current);
+    }
+
+    return [...methods.entries()].map(([name, counts]) => {
+      const total = counts.success + counts.failed;
+
+      return {
+        name: labelFromEnum(name),
+        success: total > 0 ? Math.round((counts.success / total) * 100) : 0,
+        failed: total > 0 ? Math.round((counts.failed / total) * 100) : 0,
+      };
+    });
+  }, [transactions]);
+
+  const recentCases = scenarios.slice(0, 5).map((scenario) => ({
+    id: scenario.case_id,
+    customerId:
+      transactions.find(
+        (transaction) =>
+          transaction.transaction_reference === scenario.transaction_reference,
+      )?.customer_id ?? "—",
+    type: scenario.recovery_type,
+    amount: scenario.amount_at_risk,
+    priority: scenario.priority,
+    recoveryProbability: Math.round(scenario.recovery_probability * 100),
+    status: scenario.escalation_required ? "ESCALATED" : "OPEN",
+  }));
+
+  const recentTransactions = transactions.slice(0, 5).map((transaction) => ({
+    id: transaction.transaction_reference,
+    customerId: transaction.customer_id,
+    paymentMethod: transaction.payment_method,
+    amount: transaction.amount,
+    status: transaction.status,
+  }));
+
+  const recentAuditEvents: Array<{
+    id: string;
+    actor: string;
+    event: string;
+    result?: string;
+    detail: string;
+    caseId: string;
+  }> = [];
+
 
   const recoveredRatio =
     totalAtRisk > 0
-      ? Math.round(
-          (recoveredRevenue / totalAtRisk) * 1000,
-        ) / 10
-      : 0;
-
-  const recoveryFunnel = [
-    {
-      label: "Revenue detected",
-      value: totalAtRisk,
-      percent: 100,
-    },
-    {
-      label: "Verified recovered",
-      value: recoveredRevenue,
-      percent: Math.min(recoveredRatio, 100),
-    },
-  ];
+      ? Math.round((recoveredRevenue / totalAtRisk) * 1000) / 10
+      : recoveryRate;
 
   return (
     <div className="page-container data-grid-background animate-fade-in">
@@ -322,13 +419,11 @@ export default function DashboardPage() {
             </div>
 
             <h2 className="ai-brief-title">
-              RecoverAI is currently managing{" "}
-              {formatCompactINR(totalAtRisk)} of at-risk revenue.
+              RecoverAI is currently managing {formatCompactINR(totalAtRisk)} of at-risk revenue.
             </h2>
 
             <p className="ai-brief-text">
-              The recovery engine has recovered{" "}
-              {formatCompactINR(recoveredRevenue)} so far, representing
+              The recovery engine has verified {formatCompactINR(recoveredRevenue)} so far, representing
               {` ${recoveredRatio}%`} of identified revenue at risk. High-value
               cases with stronger recovery probability are prioritized first,
               while policy-ineligible or exhausted cases are routed for
@@ -1441,7 +1536,7 @@ export default function DashboardPage() {
                 </p>
 
                 <p className="mt-3 text-2xl font-bold tracking-tight text-success">
-                  100%
+                  {scenarios.length > 0 ? "100%" : "0%"}
                 </p>
 
                 <p className="mt-2 text-[11px] text-secondary">
@@ -1502,6 +1597,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* ================================================================== */}
     </div>
   );
 }
