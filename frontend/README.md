@@ -14,16 +14,25 @@ Merchant-facing web application for monitoring revenue at risk, investigating re
 ## Routes
 
 ```text
-/
-├── login
-├── register
-└── authenticated
-    ├── dashboard
-    ├── recovery
-    │   └── [caseId]
-    ├── transactions
-    ├── agent
-    ├── analytics
-    ├── audit
-    ├── reports
-    └── settings
+frontend/
+├── public/
+├── src/
+│   ├── app/
+│   ├── components/
+│   ├── data/
+│   │   └── mock/
+│   ├── hooks/
+│   └── types/
+│
+├── .gitignore
+├── AGENTS.md
+├── CLAUDE.md
+├── README-IMPLEMENT.md
+├── README.md
+├── eslint.config.mjs
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── tailwind.config.ts
+└── tsconfig.json
