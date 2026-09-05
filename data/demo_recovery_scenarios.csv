@@ -1,0 +1,8 @@
+case_id,transaction_reference,recovery_type,priority,amount_at_risk,recovery_probability,recommended_strategy,expected_recovery,escalation_required,scenario
+CASE_001,PAY_83921,PAYMENT_FAILURE,HIGH,24999,0.84,PAYMENT_RETRY,20999.16,false,High-value UPI timeout with strong customer history
+CASE_002,PAY_83918,PAYMENT_FAILURE,HIGH,18900,0.61,PAYMENT_RETRY,11529.00,false,Card bank decline with repeat customer
+CASE_003,PAY_83914,PAYMENT_FAILURE,MEDIUM,6200,0.67,CUSTOMER_CONTACT,4154.00,false,Gateway timeout requiring customer retry
+CASE_004,PAY_83897,PAYMENT_FAILURE,LOW,4800,0.32,CUSTOMER_CONTACT,1536.00,false,Wallet unavailable with lower recovery confidence
+CASE_005,PAY_83891,PAYMENT_FAILURE,HIGH,12500,0.78,PAYMENT_RETRY,9750.00,false,UPI timeout with strong historical success
+CASE_006,PAY_83884,PAYMENT_FAILURE,MEDIUM,8500,0.38,CUSTOMER_CONTACT,3230.00,false,Insufficient funds requiring customer action
+CASE_007,PAY_83841,PAYMENT_FAILURE,HIGH,72000,0.46,MANUAL_REVIEW,33120.00,true,High-value transaction requiring human review

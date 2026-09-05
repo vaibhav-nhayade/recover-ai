@@ -1,0 +1,11 @@
+transaction_reference,customer_id,customer_name,customer_email,amount,currency,payment_method,status,failure_reason,transaction_attempts,customer_successful_transactions,customer_failed_transactions,occurred_at
+PAY_83921,CUS_1042,Rahul Sharma,rahul.sharma@example.com,24999,INR,UPI,FAILED,UPI timeout,3,18,3,2026-09-04T18:30:00
+PAY_83918,CUS_1088,Priya Mehta,priya.mehta@example.com,18900,INR,CARD,FAILED,Bank decline,2,14,2,2026-09-04T16:42:00
+PAY_83914,CUS_1102,Arjun Patil,arjun.patil@example.com,6200,INR,NETBANKING,FAILED,Gateway timeout,1,9,1,2026-09-04T15:20:00
+PAY_83897,CUS_1154,Neha Joshi,neha.joshi@example.com,4800,INR,WALLET,FAILED,Wallet unavailable,2,7,3,2026-09-04T14:10:00
+PAY_83891,CUS_1201,Rohan Kulkarni,rohan.kulkarni@example.com,12500,INR,UPI,FAILED,UPI timeout,1,22,1,2026-09-04T13:45:00
+PAY_83884,CUS_1218,Ananya Shah,ananya.shah@example.com,8500,INR,CARD,FAILED,Insufficient funds,2,11,4,2026-09-04T12:35:00
+PAY_83876,CUS_1244,Vikram Deshmukh,vikram.deshmukh@example.com,31500,INR,UPI,SUCCESS,,1,31,2,2026-09-04T11:20:00
+PAY_83865,CUS_1267,Sneha Rao,sneha.rao@example.com,18500,INR,CARD,SUCCESS,,1,16,1,2026-09-04T10:55:00
+PAY_83852,CUS_1291,Amit Verma,amit.verma@example.com,4200,INR,UPI,FAILED,Gateway timeout,2,6,2,2026-09-04T10:20:00
+PAY_83841,CUS_1310,Kavya Nair,kavya.nair@example.com,72000,INR,CARD,FAILED,Bank decline,3,28,2,2026-09-04T09:45:00
