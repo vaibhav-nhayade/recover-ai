@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useAnalytics } from "@/hooks/useAnalytics";
+
+import {
+  mockAnalytics,
+  mockAuditEvents,
+  mockRecoveryCases,
+  mockTransactions,
+} from "@/data/mock";
 
 import {
   Activity,
@@ -37,7 +43,6 @@ import {
   YAxis,
 } from "recharts";
 
-import RevenueRecoveryOverview from "@/components/dashboard/RevenueRecoveryOverview";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
 import {
@@ -48,101 +53,92 @@ import {
 
 
 /* -------------------------------------------------------------------------- */
-/* Dashboard chart data                                                       */
+/* Dashboard data derived from the project's existing demo dataset            */
 /* -------------------------------------------------------------------------- */
 
-const revenueTrend = [
-  { day: "01", atRisk: 52000, recovered: 11000 },
-  { day: "03", atRisk: 61000, recovered: 14500 },
-  { day: "05", atRisk: 58000, recovered: 16000 },
-  { day: "07", atRisk: 72000, recovered: 21000 },
-  { day: "09", atRisk: 69000, recovered: 24000 },
-  { day: "11", atRisk: 83000, recovered: 29000 },
-  { day: "13", atRisk: 79000, recovered: 32000 },
-  { day: "15", atRisk: 94000, recovered: 37000 },
-  { day: "17", atRisk: 91000, recovered: 41000 },
-  { day: "19", atRisk: 102000, recovered: 47000 },
-  { day: "21", atRisk: 98000, recovered: 50000 },
-  { day: "23", atRisk: 116000, recovered: 56000 },
-  { day: "25", atRisk: 109000, recovered: 61000 },
-  { day: "27", atRisk: 123000, recovered: 68000 },
-  { day: "29", atRisk: 118000, recovered: 72000 },
-  { day: "30", atRisk: 126000, recovered: 76000 },
-];
+const revenueTrend = mockTransactions
+  .slice(0, 8)
+  .map((transaction, index) => ({
+    day: String(index + 1).padStart(2, "0"),
+    atRisk:
+      transaction.status === "FAILED"
+        ? Number(transaction.amount)
+        : 0,
+    recovered:
+      transaction.status === "SUCCESS"
+        ? Number(transaction.amount)
+        : 0,
+  }));
 
-const recoveryByType = [
-  {
-    name: "Payment Failure",
-    value: 42,
-    amount: 772000,
-  },
-  {
-    name: "Subscription Failure",
-    value: 27,
-    amount: 497000,
-  },
-  {
-    name: "Checkout Abandonment",
-    value: 19,
-    amount: 350000,
-  },
-  {
-    name: "Overdue Invoice",
-    value: 12,
-    amount: 221000,
-  },
-];
+const recoveryTypeTotals = mockRecoveryCases.reduce<
+  Record<string, number>
+>((totals, item) => {
+  const key = item.type || "UNKNOWN";
+  totals[key] =
+    (totals[key] || 0) + Number(item.amount || 0);
+  return totals;
+}, {});
 
-const recoveryFunnel = [
-  {
-    label: "Revenue detected",
-    value: 1842000,
-    percent: 100,
-  },
-  {
-    label: "AI diagnosed",
-    value: 1426000,
-    percent: 77,
-  },
-  {
-    label: "Action eligible",
-    value: 982000,
-    percent: 53,
-  },
-  {
-    label: "Intervention executed",
-    value: 731000,
-    percent: 40,
-  },
-  {
-    label: "Recovered",
-    value: 487500,
-    percent: 26.5,
-  },
-];
+const recoveryTypeTotalAmount = Object.values(
+  recoveryTypeTotals,
+).reduce((sum, value) => sum + value, 0);
 
-const paymentMethodData = [
-  {
-    name: "UPI",
-    success: 91,
-    failed: 9,
-  },
-  {
-    name: "Card",
-    success: 86,
-    failed: 14,
-  },
-  {
-    name: "Netbanking",
-    success: 82,
-    failed: 18,
-  },
-  {
-    name: "Wallet",
-    success: 89,
-    failed: 11,
-  },
-];
+const recoveryByType = Object.entries(
+  recoveryTypeTotals,
+).map(([name, amount]) => ({
+  name,
+  amount,
+  value:
+    recoveryTypeTotalAmount > 0
+      ? Math.round(
+          (amount / recoveryTypeTotalAmount) * 100,
+        )
+      : 0,
+}));
+
+const paymentMethodTotals = mockTransactions.reduce<
+  Record<string, { success: number; failed: number }>
+>((totals, transaction) => {
+  const method = transaction.paymentMethod || "UNKNOWN";
+
+  if (!totals[method]) {
+    totals[method] = {
+      success: 0,
+      failed: 0,
+    };
+  }
+
+  if (transaction.status === "SUCCESS") {
+    totals[method].success += 1;
+  } else if (transaction.status === "FAILED") {
+    totals[method].failed += 1;
+  }
+
+  return totals;
+}, {});
+
+const paymentMethodData = Object.entries(
+  paymentMethodTotals,
+).map(([name, totals]) => {
+  const total =
+    totals.success + totals.failed;
+
+  return {
+    name,
+    success:
+      total > 0
+        ? Math.round(
+            (totals.success / total) * 100,
+          )
+        : 0,
+    failed:
+      total > 0
+        ? Math.round(
+            (totals.failed / total) * 100,
+          )
+        : 0,
+  };
+});
 
 const recoveryColors = [
   "#d99a2b",
@@ -202,33 +198,33 @@ function getStatusClass(status: string) {
 /* -------------------------------------------------------------------------- */
 
 export default function DashboardPage() {
-  const { data: analyticsData } = useAnalytics();
-
   const analytics = {
-    revenueAtRisk: Number(analyticsData?.revenue_at_risk ?? 0),
+    revenueAtRisk: Number(
+      mockAnalytics.revenueAtRisk ?? 0,
+    ),
     recoveredRevenue: Number(
-      analyticsData?.verified_recovered_revenue ?? 0,
+      mockAnalytics.recoveredRevenue ?? 0,
     ),
     recoveryRate: Number(
-      analyticsData?.recovery_rate ?? 0,
+      mockAnalytics.recoveryRate ?? 0,
     ),
     activeCases: Number(
-      analyticsData?.active_cases ?? 0,
+      mockAnalytics.activeCases ?? 0,
     ),
     successfulRecoveries: Number(
-      analyticsData?.successful_attempts ?? 0,
+      mockAnalytics.successfulRecoveries ?? 0,
     ),
     humanEscalations: Number(
-      analyticsData?.escalated_cases ?? 0,
+      mockAnalytics.humanEscalations ?? 0,
     ),
     escalationRate: Number(
-      analyticsData?.escalation_rate ?? 0,
+      mockAnalytics.escalationRate ?? 0,
     ),
     averageRecoveryTimeMinutes: Number(
-      analyticsData?.average_recovery_time_minutes ?? 0,
+      mockAnalytics.averageRecoveryTimeMinutes ?? 0,
     ),
     interventionSuccessRate: Number(
-      analyticsData?.intervention_success_rate ?? 0,
+      mockAnalytics.interventionSuccessRate ?? 0,
     ),
   };
 
@@ -237,38 +233,31 @@ export default function DashboardPage() {
   const recoveryRate = analytics.recoveryRate;
   const activeCases = analytics.activeCases;
 
-  const recentCases: Array<{
-    id: string;
-    customerId: string;
-    type: string;
-    amount: number;
-    priority: string;
-    recoveryProbability: number;
-    status: string;
-  }> = [];
-
-  const recentTransactions: Array<{
-    id: string;
-    customerId: string;
-    paymentMethod: string;
-    amount: number;
-    status: string;
-  }> = [];
-
-  const recentAuditEvents: Array<{
-    id: string;
-    actor: string;
-    event: string;
-    result?: string;
-    detail: string;
-    caseId: string;
-  }> = [];
-
+  const recentCases = mockRecoveryCases.slice(0, 5);
+  const recentTransactions =
+    mockTransactions.slice(0, 5);
+  const recentAuditEvents =
+    mockAuditEvents.slice(0, 5);
 
   const recoveredRatio =
     totalAtRisk > 0
-      ? Math.round((recoveredRevenue / totalAtRisk) * 1000) / 10
-      : recoveryRate;
+      ? Math.round(
+          (recoveredRevenue / totalAtRisk) * 1000,
+        ) / 10
+      : 0;
+
+  const recoveryFunnel = [
+    {
+      label: "Revenue detected",
+      value: totalAtRisk,
+      percent: 100,
+    },
+    {
+      label: "Verified recovered",
+      value: recoveredRevenue,
+      percent: Math.min(recoveredRatio, 100),
+    },
+  ];
 
   return (
     <div className="page-container data-grid-background animate-fade-in">
@@ -333,11 +322,13 @@ export default function DashboardPage() {
             </div>
 
             <h2 className="ai-brief-title">
-              RecoverAI is currently managing ₹18.42L of at-risk revenue.
+              RecoverAI is currently managing{" "}
+              {formatCompactINR(totalAtRisk)} of at-risk revenue.
             </h2>
 
             <p className="ai-brief-text">
-              The recovery engine has recovered ₹4.88L so far, representing
+              The recovery engine has recovered{" "}
+              {formatCompactINR(recoveredRevenue)} so far, representing
               {` ${recoveredRatio}%`} of identified revenue at risk. High-value
               cases with stronger recovery probability are prioritized first,
               while policy-ineligible or exhausted cases are routed for
@@ -1511,11 +1502,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ================================================================== */}
-      {/* PRESERVED SHARED REVENUE OVERVIEW                                  */}
-      {/* ================================================================== */}
-
-      <RevenueRecoveryOverview />
     </div>
   );
 }
