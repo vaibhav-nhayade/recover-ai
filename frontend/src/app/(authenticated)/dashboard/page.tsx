@@ -46,11 +46,6 @@ import {
   labelFromEnum,
 } from "@/lib/utils";
 
-import {
-  mockAuditEvents,
-  mockRecoveryCases,
-  mockTransactions,
-} from "@/data/mock";
 
 /* -------------------------------------------------------------------------- */
 /* Dashboard chart data                                                       */
@@ -207,16 +202,68 @@ function getStatusClass(status: string) {
 /* -------------------------------------------------------------------------- */
 
 export default function DashboardPage() {
-  const analytics = mockAnalytics;
+  const { data: analyticsData } = useAnalytics();
+
+  const analytics = {
+    revenueAtRisk: Number(analyticsData?.revenue_at_risk ?? 0),
+    recoveredRevenue: Number(
+      analyticsData?.verified_recovered_revenue ?? 0,
+    ),
+    recoveryRate: Number(
+      analyticsData?.recovery_rate ?? 0,
+    ),
+    activeCases: Number(
+      analyticsData?.active_cases ?? 0,
+    ),
+    successfulRecoveries: Number(
+      analyticsData?.successful_attempts ?? 0,
+    ),
+    humanEscalations: Number(
+      analyticsData?.escalated_cases ?? 0,
+    ),
+    escalationRate: Number(
+      analyticsData?.escalation_rate ?? 0,
+    ),
+    averageRecoveryTimeMinutes: Number(
+      analyticsData?.average_recovery_time_minutes ?? 0,
+    ),
+    interventionSuccessRate: Number(
+      analyticsData?.intervention_success_rate ?? 0,
+    ),
+  };
 
   const totalAtRisk = analytics.revenueAtRisk;
   const recoveredRevenue = analytics.recoveredRevenue;
   const recoveryRate = analytics.recoveryRate;
   const activeCases = analytics.activeCases;
 
-  const recentCases = mockRecoveryCases.slice(0, 5);
-  const recentTransactions = mockTransactions.slice(0, 5);
-  const recentAuditEvents = mockAuditEvents.slice(0, 5);
+  const recentCases: Array<{
+    id: string;
+    customerId: string;
+    type: string;
+    amount: number;
+    priority: string;
+    recoveryProbability: number;
+    status: string;
+  }> = [];
+
+  const recentTransactions: Array<{
+    id: string;
+    customerId: string;
+    paymentMethod: string;
+    amount: number;
+    status: string;
+  }> = [];
+
+  const recentAuditEvents: Array<{
+    id: string;
+    actor: string;
+    event: string;
+    result?: string;
+    detail: string;
+    caseId: string;
+  }> = [];
+
 
   const recoveredRatio =
     totalAtRisk > 0
