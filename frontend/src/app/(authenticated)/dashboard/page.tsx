@@ -139,6 +139,13 @@ function getStatusClass(status: string) {
 /* Dashboard                                                                  */
 /* -------------------------------------------------------------------------- */
 
+const recoveryColors = [
+  "#D99A22",
+  "#169C68",
+  "#3979B8",
+  "#8E8B84",
+];
+
 export default function DashboardPage() {
   const [demoData, setDemoData] = useState<DemoData>(EMPTY_DEMO_DATA);
   const [demoDataLoading, setDemoDataLoading] = useState(true);
