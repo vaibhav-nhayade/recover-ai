@@ -1,6 +1,6 @@
 # RecoverAI
 
-### Autonomous AI Revenue Recovery Agent
+### Autonomous AI Revenue Recovery Agent.
 
 > **RecoverAI identifies revenue at risk, determines the most effective recovery intervention, executes bounded recovery actions, verifies outcomes, and escalates when human judgment is required.**
 
